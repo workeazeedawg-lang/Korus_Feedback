@@ -1,0 +1,9 @@
+aiogram==3.3.0
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+google-cloud-speech==2.25.1
+gspread==6.0.2
+google-auth==2.27.0
+httpx==0.26.0
+tenacity==8.2.3
+python-dotenv==1.0.1
