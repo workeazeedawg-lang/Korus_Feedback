@@ -7,3 +7,4 @@ google-auth==2.27.0
 httpx==0.26.0
 tenacity==8.2.3
 python-dotenv==1.0.1
+pydantic-settings==2.2.1

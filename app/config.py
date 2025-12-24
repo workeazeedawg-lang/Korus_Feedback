@@ -1,8 +1,10 @@
-import os
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
     telegram_token: str = Field(..., env="TELEGRAM_TOKEN")
     telegram_webhook_path: str = Field("/telegram/korus-feedback", env="TELEGRAM_WEBHOOK_PATH")
     telegram_webhook_secret: str = Field("change-me", env="TELEGRAM_WEBHOOK_SECRET")
@@ -20,10 +22,6 @@ class Settings(BaseSettings):
     speech_language_code: str = Field("en-US", env="SPEECH_LANGUAGE_CODE")
 
     reminder_minutes: int = Field(180, env="REMINDER_MINUTES")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 def load_settings() -> Settings:
