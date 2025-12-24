@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from .bot import AppContext, register_handlers
 from .config import load_settings
 from .friendwork import create_friendwork_router
-from .sheets import SheetWebhookClient
+from .sheets import GoogleSheetClient
 from .speech import SpeechToText
 from .storage import EventStore, FeedbackBuffer, UserStore, VacancyStore
 
@@ -20,9 +20,9 @@ settings = load_settings()
 bot = Bot(token=settings.telegram_token)
 dp = Dispatcher(storage=MemoryStorage())
 
-sheets_client: Optional[SheetWebhookClient] = None
+sheets_client: Optional[GoogleSheetClient] = None
 if settings.sheets_webhook_url:
-    sheets_client = SheetWebhookClient(settings.sheets_webhook_url, settings.sheets_webhook_key)
+    sheets_client = GoogleSheetClient(settings.sheets_webhook_url, settings.sheets_webhook_key)
 else:
     logger.warning("SHEETS_WEBHOOK_URL not set. Feedback will be buffered locally.")
 

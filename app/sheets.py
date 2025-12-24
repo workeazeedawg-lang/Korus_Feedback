@@ -33,3 +33,9 @@ class SheetWebhookClient:
             logger.error("Sheet webhook failed (%s): %s", resp.status_code, resp.text)
             resp.raise_for_status()
         logger.info("Sent feedback to sheet webhook for vacancy %s", record.vacancy_id)
+
+
+class GoogleSheetClient(SheetWebhookClient):
+    """
+    Backward-compatible client name. Uses the Apps Script webhook under the hood.
+    """
