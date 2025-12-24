@@ -25,6 +25,7 @@ class SheetWebhookClient:
             "hiring_manager": record.hiring_manager_full_name,
             "comment": record.feedback_comment,
             "recruiter": record.recruiter_name,
+            "overall": record.overall_rating,
             "overall_rating": record.overall_rating,
             "comms_rating": record.comms_rating,
             "timeliness_rating": record.timeliness_rating,
@@ -34,6 +35,18 @@ class SheetWebhookClient:
             "submitted_at": record.submitted_at.isoformat(),
             "telegram_user_id": record.telegram_user_id,
             "source": "telegram-bot",
+            # Row mapped to the new sheet headers (A-I):
+            "row": [
+                record.vacancy_title or record.vacancy_id,
+                record.hiring_manager_full_name,
+                record.recommendations or record.feedback_comment,
+                record.recruiter_name,
+                record.overall_rating,
+                record.comms_rating,
+                record.timeliness_rating,
+                record.relevance_rating,
+                record.process_quality_rating,
+            ],
         }
 
         resp = httpx.post(
