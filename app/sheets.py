@@ -47,6 +47,30 @@ class SheetWebhookClient:
                 record.relevance_rating,
                 record.process_quality_rating,
             ],
+            # Explicit column names to help Apps Script map the row
+            "columns": [
+                "Вакансия",
+                "Нанимающий менеджер",
+                "Рекомендации по улучшению работы рекрутера",
+                "Рекрутер",
+                "Общая оценка работа рекрутера? (1-5)",
+                "Как оцениваете коммуникацию с рекрутером? (1-5)",
+                "Вакансия закрыта в комфортные сроки? (1-5)",
+                "Насколько релевантны кандидаты? (1-5)",
+                "Как оцениваете качество процесса? (1-5)",
+            ],
+            # Duplicate row under a generic "values" key in case the script expects that
+            "values": [
+                record.vacancy_title or record.vacancy_id,
+                record.hiring_manager_full_name,
+                record.recommendations or record.feedback_comment,
+                record.recruiter_name,
+                record.overall_rating,
+                record.comms_rating,
+                record.timeliness_rating,
+                record.relevance_rating,
+                record.process_quality_rating,
+            ],
         }
 
         resp = httpx.post(
