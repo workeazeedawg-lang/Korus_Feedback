@@ -17,9 +17,7 @@ class SheetWebhookClient:
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
     def append_feedback(self, record: FeedbackRecord) -> None:
-        params = {}
-        if self.webhook_key:
-            params["key"] = self.webhook_key
+        params = {"key": self.webhook_key or ""}
 
         payload = {
             "vacancy": record.vacancy_title or record.vacancy_id,
@@ -28,7 +26,7 @@ class SheetWebhookClient:
             "recruiter": record.recruiter_name,
         }
 
-        resp = httpx.post(self.webhook_url, params=params, json=payload, timeout=10)
+        resp = httpx.post(self.webhook_url, params=params, json=payload, timeout=10, headers={"Content-Type": "application/json"})
         if resp.status_code >= 300:
             logger.error("Sheet webhook failed (%s): %s", resp.status_code, resp.text)
             resp.raise_for_status()
