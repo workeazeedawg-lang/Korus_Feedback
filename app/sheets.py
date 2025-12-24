@@ -21,16 +21,33 @@ class SheetWebhookClient:
 
         payload = {
             "vacancy": record.vacancy_title or record.vacancy_id,
+            "vacancy_id": record.vacancy_id,
             "hiring_manager": record.hiring_manager_full_name,
             "comment": record.feedback_comment,
             "recruiter": record.recruiter_name,
+            "overall_rating": record.overall_rating,
+            "comms_rating": record.comms_rating,
+            "timeliness_rating": record.timeliness_rating,
+            "relevance_rating": record.relevance_rating,
+            "process_quality_rating": record.process_quality_rating,
+            "recommendations": record.recommendations,
+            "submitted_at": record.submitted_at.isoformat(),
+            "telegram_user_id": record.telegram_user_id,
+            "source": "telegram-bot",
         }
 
-        resp = httpx.post(self.webhook_url, params=params, json=payload, timeout=10, headers={"Content-Type": "application/json"})
-        if resp.status_code >= 300:
+        resp = httpx.post(
+            self.webhook_url,
+            params=params,
+            json=payload,
+            timeout=15,
+            headers={"Content-Type": "application/json"},
+            follow_redirects=True,
+        )
+        if resp.status_code >= 400:
             logger.error("Sheet webhook failed (%s): %s", resp.status_code, resp.text)
             resp.raise_for_status()
-        logger.info("Sent feedback to sheet webhook for vacancy %s", record.vacancy_id)
+        logger.info("Sent feedback to sheet webhook for vacancy %s (status %s)", record.vacancy_id, resp.status_code)
 
 
 class GoogleSheetClient(SheetWebhookClient):
