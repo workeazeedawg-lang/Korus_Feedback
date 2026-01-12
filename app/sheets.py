@@ -137,6 +137,30 @@ class SheetWebhookClient:
             status=u.get("status") or "active",
         )
 
+    def get_user_by_name(self, full_name: str) -> Optional[User]:
+        payload = {"type": "user_lookup_by_name", "full_name": full_name}
+        resp = self._post(payload)
+        if resp.status_code >= 400:
+            logger.error("Sheet user lookup by name failed (%s): %s", resp.status_code, resp.text)
+            resp.raise_for_status()
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001
+            logger.warning("Sheet user lookup by name returned non-JSON response.")
+            return None
+        if not data or not data.get("found"):
+            return None
+        u = data.get("user") or {}
+        return User(
+            telegram_id=int(u.get("telegram_user_id") or 0),
+            full_name=u.get("name") or u.get("full_name") or "",
+            username=u.get("tg_username") or u.get("tg_user_id") or u.get("username") or None,
+            title=u.get("role_is_active") or u.get("title") or None,
+            contact=u.get("mail") or u.get("contact") or None,
+            permission_level=u.get("permission_level") or "hiring_manager",
+            status=u.get("status") or "active",
+        )
+
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
     def upsert_vacancy(self, vacancy: VacancyAssignment) -> None:
         payload = {

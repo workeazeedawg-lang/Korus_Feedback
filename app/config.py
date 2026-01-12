@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     sheets_webhook_key: str = Field("", env="SHEETS_WEBHOOK_KEY")
 
     friendwork_secret: str = Field("fw_korus_feedback_2025_secret", env="FRIENDWORK_SECRET")
+    friendwork_api_token: str | None = Field(default=None, env="FRIENDWORK_API_TOKEN")
+    friendwork_api_base: str = Field("https://api.friend.work", env="FRIENDWORK_API_BASE")
 
     speech_language_code: str = Field("en-US", env="SPEECH_LANGUAGE_CODE")
 
