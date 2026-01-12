@@ -55,6 +55,7 @@ class SheetWebhookClient:
                 record.timeliness_rating,
                 record.relevance_rating,
                 record.process_quality_rating,
+                record.submitted_at.isoformat(),
             ],
             # Explicit column names to help Apps Script map the row.
             "columns": [
@@ -67,6 +68,7 @@ class SheetWebhookClient:
                 "Вакансия закрыта в комфортные сроки? (1-5)",
                 "Насколько релевантны кандидаты? (1-5)",
                 "Как оцениваете качество процесса? (1-5)",
+                "Дата и время",
             ],
             # Duplicate row under a generic key in case the script expects it.
             "values": [
@@ -79,6 +81,7 @@ class SheetWebhookClient:
                 record.timeliness_rating,
                 record.relevance_rating,
                 record.process_quality_rating,
+                record.submitted_at.isoformat(),
             ],
         }
 
