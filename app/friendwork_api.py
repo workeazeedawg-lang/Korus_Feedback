@@ -69,6 +69,12 @@ class FriendWorkClient:
 
         # FriendWork uses teamMembers with functionTypeName
         team_members = job_data.get("teamMembers")
+        if isinstance(team_members, dict):
+            items = team_members.get("Items") or team_members.get("items")
+            if isinstance(items, list):
+                team_members = items
+            else:
+                team_members = [team_members]
         if isinstance(team_members, list):
             for item in team_members:
                 role = (item.get("functionTypeName") or "").lower()
