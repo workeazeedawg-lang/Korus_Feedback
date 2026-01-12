@@ -26,6 +26,14 @@ def create_friendwork_router(
 ) -> APIRouter:
     router = APIRouter()
     api_client = FriendWorkClient(ctx.settings.friendwork_api_base, ctx.settings.friendwork_api_token)
+    allowed_recruiters = {
+        " ".join(name.lower().split()[:2])
+        for name in (ctx.settings.friendwork_allowed_recruiters or "").split(",")
+        if name.strip()
+    }
+
+    def _normalize_name(value: str) -> str:
+        return " ".join(value.lower().split()[:2])
 
     async def notify_admin(text: str) -> None:
         if ctx.settings.admin_chat_id is None:
@@ -64,6 +72,10 @@ def create_friendwork_router(
                             hiring_manager_ids.append(user.telegram_id)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to fetch job data from FriendWork: %s", exc)
+
+        if allowed_recruiters and recruiter_name:
+            if _normalize_name(recruiter_name) not in allowed_recruiters:
+                return {"status": "skipped_not_allowed"}
 
         vacancy = VacancyAssignment(
             vacancy_id=payload.vacancy_id,
