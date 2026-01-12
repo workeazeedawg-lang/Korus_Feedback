@@ -7,6 +7,7 @@ from typing import List
 class User:
     telegram_id: int
     full_name: str
+    username: str | None = None
     title: str | None = None
     contact: str | None = None
     permission_level: str = "hiring_manager"  # hiring_manager / admin / recruiter

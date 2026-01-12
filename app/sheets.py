@@ -92,10 +92,13 @@ class SheetWebhookClient:
     def upsert_user(self, user: User) -> None:
         payload = {
             "type": "user_upsert",
+            # Spreadsheet columns (Users sheet)
+            "tg_user_id": user.username or "",
+            "name": user.full_name,
+            "role_is_active": user.title or "",
+            "mail": user.contact or "",
+            # Extra fields for lookup/debug
             "telegram_user_id": user.telegram_id,
-            "full_name": user.full_name,
-            "title": user.title or "",
-            "contact": user.contact or "",
             "permission_level": user.permission_level,
             "status": user.status,
         }
@@ -105,8 +108,12 @@ class SheetWebhookClient:
             resp.raise_for_status()
         logger.info("Upserted user %s into sheet webhook (status %s)", user.telegram_id, resp.status_code)
 
-    def get_user(self, telegram_user_id: int) -> Optional[User]:
-        payload = {"type": "user_lookup", "telegram_user_id": telegram_user_id}
+    def get_user(self, telegram_user_id: int, tg_username: Optional[str] = None) -> Optional[User]:
+        payload = {
+            "type": "user_lookup",
+            "telegram_user_id": telegram_user_id,
+            "tg_user_id": tg_username or "",
+        }
         resp = self._post(payload)
         if resp.status_code >= 400:
             logger.error("Sheet user lookup failed (%s): %s", resp.status_code, resp.text)
@@ -121,9 +128,10 @@ class SheetWebhookClient:
         u = data.get("user") or {}
         return User(
             telegram_id=int(u.get("telegram_user_id") or telegram_user_id),
-            full_name=u.get("full_name") or "",
-            title=u.get("title") or None,
-            contact=u.get("contact") or None,
+            full_name=u.get("name") or u.get("full_name") or "",
+            username=u.get("tg_user_id") or u.get("username") or None,
+            title=u.get("role_is_active") or u.get("title") or None,
+            contact=u.get("mail") or u.get("contact") or None,
             permission_level=u.get("permission_level") or "hiring_manager",
             status=u.get("status") or "active",
         )

@@ -77,13 +77,13 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
 
 
 def register_handlers(router: Router, ctx: AppContext) -> None:
-    async def get_registered_user(telegram_id: int) -> User | None:
+    async def get_registered_user(telegram_id: int, username: str | None) -> User | None:
         user = await ctx.user_store.get(telegram_id)
         if user:
             return user
         if ctx.sheets:
             try:
-                user = ctx.sheets.get_user(telegram_id)
+                user = ctx.sheets.get_user(telegram_id, username)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to fetch user from sheet: %s", exc)
                 return None
@@ -97,7 +97,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
 
     @router.message(Command("register"))
     async def register(message: Message, state: FSMContext) -> None:
-        existing = await get_registered_user(message.from_user.id)
+        existing = await get_registered_user(message.from_user.id, message.from_user.username)
         if existing:
             await message.answer("Вы уже зарегистрированы. Спасибо!")
             return
@@ -122,6 +122,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         user = User(
             telegram_id=message.from_user.id,
             full_name=data.get("full_name", message.from_user.full_name or ""),
+            username=message.from_user.username or str(message.from_user.id),
             title=data.get("title"),
             contact=message.text.strip(),
             permission_level="hiring_manager",
@@ -143,7 +144,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         if not vacancy:
             await callback.message.answer("Не могу найти вакансию. Напишите администратору.")
             return
-        user = await get_registered_user(callback.from_user.id)
+        user = await get_registered_user(callback.from_user.id, callback.from_user.username)
         if not user:
             await callback.message.answer(
                 f"Вы не зарегистрированы. Напишите администратору ({ctx.settings.admin_contact})."
@@ -171,7 +172,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             recruiter_name="Unknown",
             hiring_manager_ids=[message.from_user.id],
         )
-        user = await get_registered_user(message.from_user.id)
+        user = await get_registered_user(message.from_user.id, message.from_user.username)
         if not user:
             await message.answer(
                 f"Вы не зарегистрированы. Напишите администратору ({ctx.settings.admin_contact})."
