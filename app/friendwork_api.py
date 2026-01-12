@@ -26,8 +26,10 @@ class FriendWorkClient:
     def _name_from_account(account: Dict[str, Any]) -> Optional[str]:
         if not account:
             return None
-        first = (account.get("firstName") or "").strip()
-        last = (account.get("lastName") or "").strip()
+        first_raw = account.get("firstName")
+        last_raw = account.get("lastName")
+        first = str(first_raw).strip() if first_raw is not None else ""
+        last = str(last_raw).strip() if last_raw is not None else ""
         full = " ".join([part for part in [last, first] if part])
         return full or None
 
@@ -88,7 +90,8 @@ class FriendWorkClient:
         if isinstance(custom_fields, list):
             for item in custom_fields:
                 system_name = (item.get("SystemName") or item.get("systemName") or "").lower()
-                value = (item.get("Value") or item.get("value") or "").strip()
+                value_raw = item.get("Value") or item.get("value")
+                value = str(value_raw).strip() if value_raw is not None else ""
                 if not value:
                     continue
                 if "hiring" in system_name and ("manager" in system_name or "interviewer" in system_name):
