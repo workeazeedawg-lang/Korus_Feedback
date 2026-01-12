@@ -1,11 +1,10 @@
 import logging
-from dataclasses import asdict
 from typing import Optional
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .models import FeedbackRecord
+from .models import FeedbackRecord, User
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +14,21 @@ class SheetWebhookClient:
         self.webhook_url = webhook_url
         self.webhook_key = webhook_key
 
+    def _post(self, payload: dict) -> httpx.Response:
+        params = {"key": self.webhook_key or ""}
+        return httpx.post(
+            self.webhook_url,
+            params=params,
+            json=payload,
+            timeout=15,
+            headers={"Content-Type": "application/json"},
+            follow_redirects=True,
+        )
+
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
     def append_feedback(self, record: FeedbackRecord) -> None:
-        params = {"key": self.webhook_key or ""}
-
         payload = {
+            "type": "feedback",
             "vacancy": record.vacancy_title or record.vacancy_id,
             "vacancy_id": record.vacancy_id,
             "hiring_manager": record.hiring_manager_full_name,
@@ -35,7 +44,7 @@ class SheetWebhookClient:
             "submitted_at": record.submitted_at.isoformat(),
             "telegram_user_id": record.telegram_user_id,
             "source": "telegram-bot",
-            # Row mapped to the new sheet headers (A-I):
+            # Row mapped to the sheet headers (A-I).
             "row": [
                 record.vacancy_title or record.vacancy_id,
                 record.hiring_manager_full_name,
@@ -47,19 +56,19 @@ class SheetWebhookClient:
                 record.relevance_rating,
                 record.process_quality_rating,
             ],
-            # Explicit column names to help Apps Script map the row
+            # Explicit column names to help Apps Script map the row.
             "columns": [
                 "Вакансия",
                 "Нанимающий менеджер",
                 "Рекомендации по улучшению работы рекрутера",
                 "Рекрутер",
-                "Общая оценка работа рекрутера? (1-5)",
+                "Общая оценка работы рекрутера? (1-5)",
                 "Как оцениваете коммуникацию с рекрутером? (1-5)",
                 "Вакансия закрыта в комфортные сроки? (1-5)",
                 "Насколько релевантны кандидаты? (1-5)",
                 "Как оцениваете качество процесса? (1-5)",
             ],
-            # Duplicate row under a generic "values" key in case the script expects that
+            # Duplicate row under a generic key in case the script expects it.
             "values": [
                 record.vacancy_title or record.vacancy_id,
                 record.hiring_manager_full_name,
@@ -73,18 +82,51 @@ class SheetWebhookClient:
             ],
         }
 
-        resp = httpx.post(
-            self.webhook_url,
-            params=params,
-            json=payload,
-            timeout=15,
-            headers={"Content-Type": "application/json"},
-            follow_redirects=True,
-        )
+        resp = self._post(payload)
         if resp.status_code >= 400:
             logger.error("Sheet webhook failed (%s): %s", resp.status_code, resp.text)
             resp.raise_for_status()
         logger.info("Sent feedback to sheet webhook for vacancy %s (status %s)", record.vacancy_id, resp.status_code)
+
+    @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
+    def upsert_user(self, user: User) -> None:
+        payload = {
+            "type": "user_upsert",
+            "telegram_user_id": user.telegram_id,
+            "full_name": user.full_name,
+            "title": user.title or "",
+            "contact": user.contact or "",
+            "permission_level": user.permission_level,
+            "status": user.status,
+        }
+        resp = self._post(payload)
+        if resp.status_code >= 400:
+            logger.error("Sheet user upsert failed (%s): %s", resp.status_code, resp.text)
+            resp.raise_for_status()
+        logger.info("Upserted user %s into sheet webhook (status %s)", user.telegram_id, resp.status_code)
+
+    def get_user(self, telegram_user_id: int) -> Optional[User]:
+        payload = {"type": "user_lookup", "telegram_user_id": telegram_user_id}
+        resp = self._post(payload)
+        if resp.status_code >= 400:
+            logger.error("Sheet user lookup failed (%s): %s", resp.status_code, resp.text)
+            resp.raise_for_status()
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001
+            logger.warning("Sheet user lookup returned non-JSON response.")
+            return None
+        if not data or not data.get("found"):
+            return None
+        u = data.get("user") or {}
+        return User(
+            telegram_id=int(u.get("telegram_user_id") or telegram_user_id),
+            full_name=u.get("full_name") or "",
+            title=u.get("title") or None,
+            contact=u.get("contact") or None,
+            permission_level=u.get("permission_level") or "hiring_manager",
+            status=u.get("status") or "active",
+        )
 
 
 class GoogleSheetClient(SheetWebhookClient):
