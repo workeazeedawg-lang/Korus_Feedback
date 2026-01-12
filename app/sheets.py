@@ -93,14 +93,12 @@ class SheetWebhookClient:
         payload = {
             "type": "user_upsert",
             # Spreadsheet columns (Users sheet)
-            "tg_user_id": user.username or "",
+            "tg_username": user.username or "",
             "name": user.full_name,
             "role_is_active": user.title or "",
             "mail": user.contact or "",
-            # Extra fields for lookup/debug
+            # Extra field for lookup/debug
             "telegram_user_id": user.telegram_id,
-            "permission_level": user.permission_level,
-            "status": user.status,
         }
         resp = self._post(payload)
         if resp.status_code >= 400:
@@ -112,7 +110,7 @@ class SheetWebhookClient:
         payload = {
             "type": "user_lookup",
             "telegram_user_id": telegram_user_id,
-            "tg_user_id": tg_username or "",
+            "tg_username": tg_username or "",
         }
         resp = self._post(payload)
         if resp.status_code >= 400:
@@ -129,7 +127,7 @@ class SheetWebhookClient:
         return User(
             telegram_id=int(u.get("telegram_user_id") or telegram_user_id),
             full_name=u.get("name") or u.get("full_name") or "",
-            username=u.get("tg_user_id") or u.get("username") or None,
+            username=u.get("tg_username") or u.get("tg_user_id") or u.get("username") or None,
             title=u.get("role_is_active") or u.get("title") or None,
             contact=u.get("mail") or u.get("contact") or None,
             permission_level=u.get("permission_level") or "hiring_manager",
