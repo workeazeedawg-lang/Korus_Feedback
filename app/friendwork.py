@@ -51,6 +51,11 @@ def create_friendwork_router(
             hiring_manager_ids=payload.hiring_manager_ids,
         )
         await ctx.vacancy_store.upsert(vacancy)
+        if ctx.sheets:
+            try:
+                ctx.sheets.upsert_vacancy(vacancy)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to store vacancy in sheet: %s", exc)
 
         if not vacancy.hiring_manager_ids:
             await notify_admin(f"No hiring managers found for vacancy {vacancy.vacancy_id}")

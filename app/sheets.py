@@ -4,7 +4,7 @@ from typing import Optional
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .models import FeedbackRecord, User
+from .models import FeedbackRecord, User, VacancyAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,42 @@ class SheetWebhookClient:
             contact=u.get("mail") or u.get("contact") or None,
             permission_level=u.get("permission_level") or "hiring_manager",
             status=u.get("status") or "active",
+        )
+
+    @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
+    def upsert_vacancy(self, vacancy: VacancyAssignment) -> None:
+        payload = {
+            "type": "vacancy_upsert",
+            "vacancy_id": vacancy.vacancy_id,
+            "vacancy_title": vacancy.vacancy_title,
+            "recruiter_name": vacancy.recruiter_name,
+            "hiring_manager_ids": vacancy.hiring_manager_ids,
+        }
+        resp = self._post(payload)
+        if resp.status_code >= 400:
+            logger.error("Sheet vacancy upsert failed (%s): %s", resp.status_code, resp.text)
+            resp.raise_for_status()
+        logger.info("Upserted vacancy %s into sheet webhook (status %s)", vacancy.vacancy_id, resp.status_code)
+
+    def get_vacancy(self, vacancy_id: str) -> Optional[VacancyAssignment]:
+        payload = {"type": "vacancy_lookup", "vacancy_id": vacancy_id}
+        resp = self._post(payload)
+        if resp.status_code >= 400:
+            logger.error("Sheet vacancy lookup failed (%s): %s", resp.status_code, resp.text)
+            resp.raise_for_status()
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001
+            logger.warning("Sheet vacancy lookup returned non-JSON response.")
+            return None
+        if not data or not data.get("found"):
+            return None
+        v = data.get("vacancy") or {}
+        return VacancyAssignment(
+            vacancy_id=v.get("vacancy_id") or vacancy_id,
+            vacancy_title=v.get("vacancy_title") or "",
+            recruiter_name=v.get("recruiter_name") or "",
+            hiring_manager_ids=list(v.get("hiring_manager_ids") or []),
         )
 
 

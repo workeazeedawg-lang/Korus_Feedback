@@ -141,6 +141,14 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         await callback.answer()
         vacancy_id = callback.data.split(":", maxsplit=1)[1]
         vacancy = await ctx.vacancy_store.get(vacancy_id)
+        if not vacancy and ctx.sheets:
+            try:
+                vacancy = ctx.sheets.get_vacancy(vacancy_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to fetch vacancy from sheet: %s", exc)
+                vacancy = None
+            if vacancy:
+                await ctx.vacancy_store.upsert(vacancy)
         if not vacancy:
             await callback.message.answer("Не могу найти вакансию. Напишите администратору.")
             return
