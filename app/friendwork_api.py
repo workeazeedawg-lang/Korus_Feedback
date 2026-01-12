@@ -56,9 +56,24 @@ class FriendWorkClient:
             if not isinstance(items, list):
                 continue
             for item in items:
-                role = (item.get("role") or item.get("position") or "").lower()
+                role = (
+                    item.get("role")
+                    or item.get("position")
+                    or item.get("functionTypeName")
+                    or ""
+                ).lower()
                 if "нанимающ" in role or "hiring manager" in role:
                     name = self._name_from_account(item.get("account") or item)
+                    if name:
+                        names.append(name)
+
+        # FriendWork uses teamMembers with functionTypeName
+        team_members = job_data.get("teamMembers")
+        if isinstance(team_members, list):
+            for item in team_members:
+                role = (item.get("functionTypeName") or "").lower()
+                if "нанимающ" in role or "hiring manager" in role:
+                    name = self._name_from_account(item)
                     if name:
                         names.append(name)
 
