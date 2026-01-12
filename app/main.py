@@ -3,6 +3,7 @@ from typing import Optional
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Update
 from fastapi import FastAPI, HTTPException, Request
 
@@ -18,7 +19,13 @@ logger = logging.getLogger(__name__)
 
 settings = load_settings()
 bot = Bot(token=settings.telegram_token)
-dp = Dispatcher(storage=MemoryStorage())
+
+if settings.redis_url:
+    dp = Dispatcher(storage=RedisStorage.from_url(settings.redis_url))
+    logger.info("Using Redis FSM storage.")
+else:
+    dp = Dispatcher(storage=MemoryStorage())
+    logger.info("Using in-memory FSM storage.")
 
 sheets_client: Optional[GoogleSheetClient] = None
 if settings.sheets_webhook_url:

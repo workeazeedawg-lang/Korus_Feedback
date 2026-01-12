@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     reminder_minutes: int = Field(180, env="REMINDER_MINUTES")
 
+    redis_url: str | None = Field(default=None, env="REDIS_URL")
+
 
 def load_settings() -> Settings:
     return Settings()
