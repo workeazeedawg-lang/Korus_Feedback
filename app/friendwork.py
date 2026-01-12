@@ -66,10 +66,14 @@ def create_friendwork_router(
                 recruiter_name = recruiter_name or (api_client.extract_recruiter_name(job_data) or "")
                 if not hiring_manager_ids and ctx.sheets:
                     names = api_client.extract_hiring_manager_names(job_data)
+                    if names:
+                        logger.info("FriendWork hiring manager names: %s", ", ".join(names))
                     for name in names:
                         user = ctx.sheets.get_user_by_name(name)
                         if user and user.telegram_id:
                             hiring_manager_ids.append(user.telegram_id)
+                    if names and not hiring_manager_ids:
+                        logger.warning("No matching users found for hiring manager names.")
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to fetch job data from FriendWork: %s", exc)
 

@@ -77,6 +77,17 @@ class FriendWorkClient:
                     if name:
                         names.append(name)
 
+        # Fallback: check customFieldValues for hiring-related fields
+        custom_fields = job_data.get("customFieldValues")
+        if isinstance(custom_fields, list):
+            for item in custom_fields:
+                system_name = (item.get("SystemName") or item.get("systemName") or "").lower()
+                value = (item.get("Value") or item.get("value") or "").strip()
+                if not value:
+                    continue
+                if "hiring" in system_name and ("manager" in system_name or "interviewer" in system_name):
+                    names.append(value)
+
         # Deduplicate while preserving order
         seen = set()
         unique = []
