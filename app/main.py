@@ -1,5 +1,8 @@
+import asyncio
 import logging
+from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -7,12 +10,12 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Update
 from fastapi import FastAPI, HTTPException, Request
 
-from .bot import AppContext, register_handlers
+from .bot import AppContext, next_daily_moscow, register_handlers, send_feedback_request_to_user
 from .config import load_settings
 from .friendwork import create_friendwork_router
 from .sheets import GoogleSheetClient
 from .speech import SpeechToText
-from .storage import EventStore, FeedbackBuffer, UserStore, VacancyStore
+from .storage import EventStore, FeedbackBuffer, Reminder, ReminderStore, UserStore, VacancyStore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,12 +46,14 @@ user_store = UserStore()
 vacancy_store = VacancyStore()
 feedback_buffer = FeedbackBuffer()
 event_store = EventStore()
+reminder_store = ReminderStore()
 
 ctx = AppContext(
     settings=settings,
     user_store=user_store,
     vacancy_store=vacancy_store,
     feedback_buffer=feedback_buffer,
+    reminders=reminder_store,
     sheets=sheets_client,
     speech=speech_client,
 )
@@ -58,6 +63,35 @@ register_handlers(dp, ctx)
 
 app = FastAPI()
 app.include_router(router)
+
+
+async def reminder_loop() -> None:
+    tz = ZoneInfo("Europe/Moscow")
+    while True:
+        await asyncio.sleep(30)
+        now = datetime.now(tz)
+        due = await ctx.reminders.due(now)
+        if not due:
+            continue
+        for reminder in due:
+            vacancy = await ctx.vacancy_store.get(reminder.vacancy_id)
+            if not vacancy and ctx.sheets:
+                try:
+                    vacancy = ctx.sheets.get_vacancy(reminder.vacancy_id)
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Failed to fetch vacancy from sheet: %s", exc)
+                    vacancy = None
+                if vacancy:
+                    await ctx.vacancy_store.upsert(vacancy)
+            if vacancy:
+                await send_feedback_request_to_user(bot, ctx, vacancy, reminder.telegram_id)
+            next_at = next_daily_moscow()
+            await ctx.reminders.upsert(Reminder(reminder.telegram_id, reminder.vacancy_id, next_at))
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    asyncio.create_task(reminder_loop())
 
 
 @app.get("/health")

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Dict, Iterable, List, Optional
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from .models import FeedbackRecord, User, VacancyAssignment
 
@@ -94,3 +96,28 @@ class FeedbackBuffer:
     async def list_recent(self, limit: int = 20) -> List[FeedbackRecord]:
         async with self._lock:
             return list(self._items[-limit:])
+
+
+@dataclass
+class Reminder:
+    telegram_id: int
+    vacancy_id: str
+    next_at: datetime
+
+
+class ReminderStore:
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._items: Dict[Tuple[int, str], Reminder] = {}
+
+    async def upsert(self, reminder: Reminder) -> None:
+        async with self._lock:
+            self._items[(reminder.telegram_id, reminder.vacancy_id)] = reminder
+
+    async def remove(self, telegram_id: int, vacancy_id: str) -> None:
+        async with self._lock:
+            self._items.pop((telegram_id, vacancy_id), None)
+
+    async def due(self, now: datetime) -> List[Reminder]:
+        async with self._lock:
+            return [item for item in self._items.values() if item.next_at <= now]

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command, CommandStart
@@ -19,7 +20,7 @@ from .config import Settings
 from .models import FeedbackRecord, User, VacancyAssignment
 from .sheets import GoogleSheetClient
 from .speech import SpeechToText
-from .storage import FeedbackBuffer, UserStore, VacancyStore
+from .storage import FeedbackBuffer, Reminder, ReminderStore, UserStore, VacancyStore
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class AppContext:
     user_store: UserStore
     vacancy_store: VacancyStore
     feedback_buffer: FeedbackBuffer
+    reminders: ReminderStore
     sheets: GoogleSheetClient | None
     speech: SpeechToText | None
 
@@ -79,6 +81,15 @@ def confirm_feedback_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def next_daily_moscow(hour: int = 10) -> datetime:
+    tz = ZoneInfo("Europe/Moscow")
+    now = datetime.now(tz)
+    target = datetime.combine(now.date(), time(hour=hour, minute=0, tzinfo=tz))
+    if now >= target:
+        target = target + timedelta(days=1)
+    return target
+
+
 async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssignment) -> None:
     for manager_id in vacancy.hiring_manager_ids:
         user = await ctx.user_store.get(manager_id)
@@ -93,6 +104,23 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
             await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to send feedback request to %s: %s", manager_id, exc)
+
+
+async def send_feedback_request_to_user(
+    bot: Bot, ctx: AppContext, vacancy: VacancyAssignment, manager_id: int
+) -> None:
+    user = await ctx.user_store.get(manager_id)
+    if user and user.status != "active":
+        return
+    text = (
+        f"Вакансия закрыта: {vacancy.vacancy_title}\n"
+        f"Рекрутер: {vacancy.recruiter_name}\n"
+        "Можете оставить отзыв сейчас?"
+    )
+    try:
+        await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to send feedback request to %s: %s", manager_id, exc)
 
 
 def register_handlers(router: Router, ctx: AppContext) -> None:
@@ -159,6 +187,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
     async def handle_start_feedback(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         vacancy_id = callback.data.split(":", maxsplit=1)[1]
+        await ctx.reminders.remove(callback.from_user.id, vacancy_id)
         vacancy = await ctx.vacancy_store.get(vacancy_id)
         if not vacancy and ctx.sheets:
             try:
@@ -188,8 +217,13 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
 
     @router.callback_query(lambda c: c.data and c.data.startswith("remind_feedback:"))
     async def handle_remind_feedback(callback: CallbackQuery) -> None:
-        await callback.answer("Хорошо, напомню позже.")
-        # Hook for reminder scheduling can be added here.
+        await callback.answer()
+        vacancy_id = callback.data.split(":", maxsplit=1)[1]
+        remind_at = next_daily_moscow()
+        await ctx.reminders.upsert(Reminder(callback.from_user.id, vacancy_id, remind_at))
+        await callback.message.answer(
+            f"Хорошо, напомню {remind_at.strftime('%d.%m.%Y в %H:%M')} МСК."
+        )
 
     @router.message(Command("feedback"))
     async def manual_feedback(message: Message, state: FSMContext) -> None:
@@ -337,6 +371,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
 
     async def _finalize_feedback(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
+        vacancy_id = data.get("vacancy_id", "")
+        await ctx.reminders.remove(message.from_user.id, vacancy_id)
         record = FeedbackRecord(
             vacancy_id=data.get("vacancy_id", ""),
             vacancy_title=data.get("vacancy_title", ""),
