@@ -79,8 +79,26 @@ def create_friendwork_router(
             if status:
                 status_value = str(status).strip().lower()
                 if status_value not in {"closed", "закрыта", "закрыто", "закрыт"}:
-                    logger.info("Ignoring job status %s for vacancy %s", status_value, vacancy_id)
-                    return {"status": "ignored_status", "value": str(status)}
+                    if ctx.settings.friendwork_api_token and vacancy_id:
+                        try:
+                            live_job = api_client.get_job(str(vacancy_id))
+                            live_status = _get_value(live_job, "status", "Status")
+                            live_value = str(live_status).strip().lower() if live_status else ""
+                            if live_value in {"closed", "закрыта", "закрыто", "закрыт"}:
+                                job_data = live_job
+                            else:
+                                logger.info(
+                                    "Ignoring job status %s for vacancy %s",
+                                    status_value,
+                                    vacancy_id,
+                                )
+                                return {"status": "ignored_status", "value": str(status)}
+                        except Exception as exc:  # noqa: BLE001
+                            logger.error("Failed to verify job status: %s", exc)
+                            return {"status": "ignored_status", "value": str(status)}
+                    else:
+                        logger.info("Ignoring job status %s for vacancy %s", status_value, vacancy_id)
+                        return {"status": "ignored_status", "value": str(status)}
             vacancy_title = vacancy_title or (_get_value(job_data, "name", "title") or "")
             recruiter_name = recruiter_name or (api_client.extract_recruiter_name(job_data) or "")
             hiring_manager_ids = []
