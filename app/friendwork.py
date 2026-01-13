@@ -86,6 +86,10 @@ def create_friendwork_router(
             hiring_manager_ids = []
             if ctx.sheets:
                 names = api_client.extract_hiring_manager_names(job_data)
+                if recruiter_name:
+                    names = [
+                        name for name in names if _normalize_name(name) != _normalize_name(recruiter_name)
+                    ]
                 if names:
                     logger.info("FriendWork hiring manager names: %s", ", ".join(names))
                 for name in names:

@@ -85,7 +85,7 @@ class FriendWorkClient:
                     if name:
                         names.append(name)
 
-        # Fallback: check customFieldValues for hiring-related fields
+        # Fallback: check customFieldValues for hiring manager fields only
         custom_fields = job_data.get("customFieldValues")
         if isinstance(custom_fields, list):
             for item in custom_fields:
@@ -94,7 +94,7 @@ class FriendWorkClient:
                 value = str(value_raw).strip() if value_raw is not None else ""
                 if not value:
                     continue
-                if "hiring" in system_name and ("manager" in system_name or "interviewer" in system_name):
+                if "hiring" in system_name and "manager" in system_name and "interviewer" not in system_name:
                     names.append(value)
 
         # Deduplicate while preserving order
