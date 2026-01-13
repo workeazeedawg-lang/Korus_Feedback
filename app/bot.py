@@ -60,6 +60,16 @@ def feedback_keyboard(vacancy_id: str) -> InlineKeyboardMarkup:
     )
 
 
+def recruiter_choice_keyboard(recruiter_name: str) -> InlineKeyboardMarkup:
+    label = recruiter_name.strip() if recruiter_name.strip() else "Не знаю"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"Использовать: {label}", callback_data="recruiter_use_default")],
+            [InlineKeyboardButton(text="Ввести другое имя", callback_data="recruiter_other")],
+        ]
+    )
+
+
 async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssignment) -> None:
     for manager_id in vacancy.hiring_manager_ids:
         user = await ctx.user_store.get(manager_id)
@@ -215,16 +225,28 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         data = await state.get_data()
         await state.set_state(FeedbackStates.recruiter)
         await message.answer(
-            f"С каким рекрутером вы работали? (по умолчанию: {data.get('recruiter_name')})\n"
-            "Введите имя или напишите 'по умолчанию'."
+            "С каким рекрутером вы работали?",
+            reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
         )
+
+    @router.callback_query(lambda c: c.data == "recruiter_use_default")
+    async def recruiter_use_default(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        data = await state.get_data()
+        recruiter_name = data.get("recruiter_name", "Неизвестен")
+        await state.update_data(recruiter_name=recruiter_name)
+        await state.set_state(FeedbackStates.comms_rating)
+        await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
+
+    @router.callback_query(lambda c: c.data == "recruiter_other")
+    async def recruiter_other(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        await state.set_state(FeedbackStates.recruiter)
+        await callback.message.answer("Введите имя рекрутера.")
 
     @router.message(FeedbackStates.recruiter)
     async def receive_recruiter(message: Message, state: FSMContext) -> None:
         recruiter_name = message.text.strip()
-        data = await state.get_data()
-        if recruiter_name.lower() == "default":
-            recruiter_name = data.get("recruiter_name", "Unknown")
         await state.update_data(recruiter_name=recruiter_name)
         await state.set_state(FeedbackStates.comms_rating)
         await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
