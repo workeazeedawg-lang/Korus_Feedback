@@ -24,6 +24,33 @@ class UserStore:
             for user in users:
                 self._users[user.telegram_id] = user
 
+    async def find_by_username(self, username: str) -> Optional[User]:
+        if not username:
+            return None
+        needle = username.strip().lower()
+        async with self._lock:
+            for user in self._users.values():
+                if user.username and user.username.strip().lower() == needle:
+                    return user
+        return None
+
+    async def find_by_full_name(self, full_name: str) -> Optional[User]:
+        if not full_name:
+            return None
+
+        def normalize(value: str) -> str:
+            parts = value.strip().lower().split()
+            return " ".join(parts[:2])
+
+        needle = normalize(full_name)
+        swapped = " ".join(reversed(full_name.strip().lower().split()[:2]))
+        async with self._lock:
+            for user in self._users.values():
+                candidate = normalize(user.full_name)
+                if candidate == needle or candidate == swapped:
+                    return user
+        return None
+
 
 class VacancyStore:
     def __init__(self) -> None:

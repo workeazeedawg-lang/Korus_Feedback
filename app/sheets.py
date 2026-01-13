@@ -127,8 +127,15 @@ class SheetWebhookClient:
         if not data or not data.get("found"):
             return None
         u = data.get("user") or {}
+        telegram_user_id = (
+            u.get("telegram_user_id")
+            or u.get("telegram_id")
+            or u.get("tg_user_id")
+            or u.get("Telegram ID")
+            or u.get("Telegram Id")
+        )
         return User(
-            telegram_id=int(u.get("telegram_user_id") or telegram_user_id),
+            telegram_id=int(telegram_user_id or telegram_user_id),
             full_name=u.get("name") or u.get("full_name") or "",
             username=u.get("tg_username") or u.get("tg_user_id") or u.get("username") or None,
             title=u.get("role_is_active") or u.get("title") or None,
@@ -151,8 +158,15 @@ class SheetWebhookClient:
         if not data or not data.get("found"):
             return None
         u = data.get("user") or {}
+        telegram_user_id = (
+            u.get("telegram_user_id")
+            or u.get("telegram_id")
+            or u.get("tg_user_id")
+            or u.get("Telegram ID")
+            or u.get("Telegram Id")
+        )
         return User(
-            telegram_id=int(u.get("telegram_user_id") or 0),
+            telegram_id=int(telegram_user_id or 0),
             full_name=u.get("name") or u.get("full_name") or "",
             username=u.get("tg_username") or u.get("tg_user_id") or u.get("username") or None,
             title=u.get("role_is_active") or u.get("title") or None,
