@@ -70,6 +70,15 @@ def recruiter_choice_keyboard(recruiter_name: str) -> InlineKeyboardMarkup:
     )
 
 
+def confirm_feedback_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Да, сохранить", callback_data="confirm_feedback_yes")],
+            [InlineKeyboardButton(text="Нет, отменить", callback_data="confirm_feedback_no")],
+        ]
+    )
+
+
 async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssignment) -> None:
     for manager_id in vacancy.hiring_manager_ids:
         user = await ctx.user_store.get(manager_id)
@@ -324,19 +333,9 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             f"Рекомендации: {text}\n\n"
             "Сохранить отзыв? Ответьте 'да' для сохранения или 'нет' для отмены."
         )
-        await message.answer(summary)
+        await message.answer(summary, reply_markup=confirm_feedback_keyboard())
 
-    @router.message(FeedbackStates.confirm)
-    async def confirm(message: Message, state: FSMContext) -> None:
-        decision = (message.text or "").strip().lower()
-        if decision not in {"yes", "no", "да", "нет"}:
-            await message.answer("Ответьте 'да' чтобы сохранить или 'нет' чтобы отменить.")
-            return
-        if decision in {"no", "нет"}:
-            await state.clear()
-            await message.answer("Отзыв отменен.")
-            return
-
+    async def _finalize_feedback(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         record = FeedbackRecord(
             vacancy_id=data.get("vacancy_id", ""),
@@ -365,4 +364,28 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             logger.warning("Google Sheets client not configured. Feedback buffered locally.")
         await state.clear()
         await message.answer("Спасибо за обратную связь! Это очень важно для нашей команды.")
+
+    @router.callback_query(lambda c: c.data == "confirm_feedback_yes")
+    async def confirm_feedback_yes(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        await _finalize_feedback(callback.message, state)
+
+    @router.callback_query(lambda c: c.data == "confirm_feedback_no")
+    async def confirm_feedback_no(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        await state.clear()
+        await callback.message.answer("Отзыв отменен.")
+
+    @router.message(FeedbackStates.confirm)
+    async def confirm(message: Message, state: FSMContext) -> None:
+        decision = (message.text or "").strip().lower()
+        if decision not in {"yes", "no", "да", "нет"}:
+            await message.answer("Ответьте 'да' чтобы сохранить или 'нет' чтобы отменить.")
+            return
+        if decision in {"no", "нет"}:
+            await state.clear()
+            await message.answer("Отзыв отменен.")
+            return
+
+        await _finalize_feedback(message, state)
 
