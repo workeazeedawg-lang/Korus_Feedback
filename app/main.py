@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -21,6 +23,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 settings = load_settings()
+
+# Allow credentials to be provided via env var JSON when file-based creds are not set.
+credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if credentials_json and not credentials_path:
+    cred_file = "/tmp/google-credentials.json"
+    with open(cred_file, "w", encoding="utf-8") as handle:
+        handle.write(credentials_json)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_file
 bot = Bot(token=settings.telegram_token)
 
 if settings.redis_url:
