@@ -71,6 +71,7 @@ def create_friendwork_router(
         recruiter_name = _get_value(raw, "recruiter_name", "recruiterName") or ""
         hiring_manager_ids = _get_value(raw, "hiring_manager_ids", "hiringManagerIds") or []
 
+        status_value = ""
         if job_data:
             job_id = _get_value(job_data, "jobId", "id")
             if job_id is not None:
@@ -86,6 +87,7 @@ def create_friendwork_router(
                             live_value = str(live_status).strip().lower() if live_status else ""
                             if live_value in {"closed", "закрыта", "закрыто", "закрыт"}:
                                 job_data = live_job
+                                status_value = live_value
                             else:
                                 logger.info(
                                     "Ignoring job status %s for vacancy %s",
@@ -133,6 +135,8 @@ def create_friendwork_router(
             await notify_admin("FriendWork webhook missing vacancy id.")
             return {"status": "missing_vacancy_id"}
 
+        if not event_id and status_value in {"closed", "закрыта", "закрыто", "закрыт"}:
+            event_id = f"closed-{vacancy_id}"
         event_id = str(event_id or f"job-{vacancy_id}-{datetime.utcnow().isoformat()}")
         if await event_store.seen(event_id):
             return {"status": "duplicate"}
