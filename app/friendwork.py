@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, List, Optional
@@ -82,6 +83,8 @@ def create_friendwork_router(
                 if status_value not in {"closed", "закрыта", "закрыто", "закрыт"}:
                     if ctx.settings.friendwork_api_token and vacancy_id:
                         try:
+                            # Give FriendWork a short window to propagate the closed status.
+                            await asyncio.sleep(20)
                             live_job = api_client.get_job(str(vacancy_id))
                             live_status = _get_value(live_job, "status", "Status")
                             live_value = str(live_status).strip().lower() if live_status else ""
