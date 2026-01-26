@@ -63,7 +63,7 @@ def feedback_keyboard(vacancy_id: str) -> InlineKeyboardMarkup:
 
 
 def recruiter_choice_keyboard(recruiter_name: str) -> InlineKeyboardMarkup:
-    label = recruiter_name.strip() if recruiter_name.strip() else "РќРµ Р·РЅР°СЋ"
+    label = recruiter_name.strip() if recruiter_name.strip() else "Не знаю"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"Использовать: {label}", callback_data="recruiter_use_default")],
@@ -166,28 +166,30 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
 
     @router.message(CommandStart())
     async def start(message: Message) -> None:
-        await message.answer("Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ! РСЃРїРѕР»СЊР·СѓР№С‚Рµ /register, С‡С‚РѕР±С‹ РїРѕРґС‚РІРµСЂРґРёС‚СЊ РґРѕСЃС‚СѓРї, РёР»Рё Р¶РґРёС‚Рµ Р·Р°РїСЂРѕСЃ РЅР° РѕС‚Р·С‹РІ.")
+        await message.answer(
+            "Здравствуйте! Используйте /register, чтобы подтвердить доступ, или ждите запрос на отзыв."
+        )
 
     @router.message(Command("register"))
     async def register(message: Message, state: FSMContext) -> None:
         existing = await get_registered_user(message.from_user.id, message.from_user.username)
         if existing:
-            await message.answer("Р’С‹ СѓР¶Рµ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅС‹. РЎРїР°СЃРёР±Рѕ!")
+            await message.answer("Вы уже зарегистрированы. Спасибо!")
             return
         await state.set_state(RegistrationStates.waiting_full_name)
-        await message.answer("РЈРєР°Р¶РёС‚Рµ РІР°С€Рµ Р¤РРћ РґР»СЏ Р·Р°РІРµСЂС€РµРЅРёСЏ СЂРµРіРёСЃС‚СЂР°С†РёРё.")
+        await message.answer("Укажите ваше ФИО для завершения регистрации.")
 
     @router.message(RegistrationStates.waiting_full_name)
     async def save_full_name(message: Message, state: FSMContext) -> None:
         await state.update_data(full_name=message.text.strip())
         await state.set_state(RegistrationStates.waiting_title)
-        await message.answer("Р’Р°С€Р° РґРѕР»Р¶РЅРѕСЃС‚СЊ?")
+        await message.answer("Ваша должность?")
 
     @router.message(RegistrationStates.waiting_title)
     async def save_title(message: Message, state: FSMContext) -> None:
         await state.update_data(title=message.text.strip())
         await state.set_state(RegistrationStates.waiting_contact)
-        await message.answer("РљРѕРЅС‚Р°РєС‚ (email/С‚РµР»РµС„РѕРЅ)?")
+        await message.answer("Контакт (email/телефон)?")
 
     @router.message(RegistrationStates.waiting_contact)
     async def finish_registration(message: Message, state: FSMContext) -> None:
@@ -207,7 +209,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to store user in sheet: %s", exc)
         await state.clear()
-        await message.answer("Р’С‹ СѓСЃРїРµС€РЅРѕ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅС‹. РЎРїР°СЃРёР±Рѕ!")
+        await message.answer("Вы успешно зарегистрированы. Спасибо!")
 
     @router.callback_query(lambda c: c.data and c.data.startswith("start_feedback:"))
     async def handle_start_feedback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -224,12 +226,12 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             if vacancy:
                 await ctx.vacancy_store.upsert(vacancy)
         if not vacancy:
-            await callback.message.answer("РќРµ РјРѕРіСѓ РЅР°Р№С‚Рё РІР°РєР°РЅСЃРёСЋ. РќР°РїРёС€РёС‚Рµ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ.")
+            await callback.message.answer("Не могу найти вакансию. Напишите администратору.")
             return
         user = await get_registered_user(callback.from_user.id, callback.from_user.username)
         if not user:
             await callback.message.answer(
-                f"Р’С‹ РЅРµ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅС‹. РќР°РїРёС€РёС‚Рµ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ ({ctx.settings.admin_contact})."
+                f"Вы не зарегистрированы. Напишите администратору ({ctx.settings.admin_contact})."
             )
             return
         await state.update_data(
@@ -243,7 +245,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
-        await callback.message.answer("РћР±С‰Р°СЏ РѕС†РµРЅРєР° СЂР°Р±РѕС‚С‹ СЂРµРєСЂСѓС‚РµСЂР° (1-5)?")
+        await callback.message.answer("Общая оценка работы рекрутера (1-5)?")
 
     @router.callback_query(lambda c: c.data and c.data.startswith("remind_feedback:"))
     async def handle_remind_feedback(callback: CallbackQuery) -> None:
@@ -283,7 +285,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             )
         )
         await callback.message.answer(
-            f"РҐРѕСЂРѕС€Рѕ, РЅР°РїРѕРјРЅСЋ {remind_at.strftime('%d.%m.%Y РІ %H:%M')} РњРЎРљ."
+            f"Хорошо, напомню {remind_at.strftime('%d.%m.%Y в %H:%M')} МСК."
         )
     @router.message(Command("feedback"))
     async def manual_feedback(message: Message, state: FSMContext) -> None:
@@ -300,7 +302,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         user = await get_registered_user(message.from_user.id, message.from_user.username)
         if not user:
             await message.answer(
-                f"Р’С‹ РЅРµ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅС‹. РќР°РїРёС€РёС‚Рµ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ ({ctx.settings.admin_contact})."
+                f"Вы не зарегистрированы. Напишите администратору ({ctx.settings.admin_contact})."
             )
             return
         await ctx.vacancy_store.upsert(vacancy)
@@ -315,7 +317,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
-        await message.answer("Р—Р°РїСѓСЃРєР°СЋ СЂСѓС‡РЅРѕР№ РѕРїСЂРѕСЃ. РћР±С‰Р°СЏ РѕС†РµРЅРєР° СЂР°Р±РѕС‚С‹ СЂРµРєСЂСѓС‚РµСЂР° (1-5)?")
+        await message.answer("Запускаю ручной опрос. Общая оценка работы рекрутера (1-5)?")
 
     async def _validate_rating(message: Message, min_value: int = 1, max_value: int = 5) -> int | None:
         try:
@@ -324,7 +326,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
                 return value
         except Exception:
             pass
-        await message.answer(f"Р’РІРµРґРёС‚Рµ С‡РёСЃР»Рѕ РѕС‚ {min_value} РґРѕ {max_value}.")
+        await message.answer(f"Введите число от {min_value} до {max_value}.")
         return None
 
     @router.message(FeedbackStates.overall_rating)
@@ -336,7 +338,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         data = await state.get_data()
         await state.set_state(FeedbackStates.recruiter)
         await message.answer(
-            "РЎ РєР°РєРёРј СЂРµРєСЂСѓС‚РµСЂРѕРј РІС‹ СЂР°Р±РѕС‚Р°Р»Рё?",
+            "С каким рекрутером вы работали?",
             reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
         )
 
@@ -344,23 +346,23 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
     async def recruiter_use_default(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         data = await state.get_data()
-        recruiter_name = data.get("recruiter_name", "РќРµРёР·РІРµСЃС‚РµРЅ")
+        recruiter_name = data.get("recruiter_name", "Неизвестен")
         await state.update_data(recruiter_name=recruiter_name)
         await state.set_state(FeedbackStates.comms_rating)
-        await callback.message.answer("РљР°Рє РѕС†РµРЅРёРІР°РµС‚Рµ РєРѕРјРјСѓРЅРёРєР°С†РёСЋ СЃ СЂРµРєСЂСѓС‚РµСЂРѕРј? (1-5)")
+        await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
 
     @router.callback_query(lambda c: c.data == "recruiter_other")
     async def recruiter_other(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         await state.set_state(FeedbackStates.recruiter)
-        await callback.message.answer("Р’РІРµРґРёС‚Рµ РёРјСЏ СЂРµРєСЂСѓС‚РµСЂР°.")
+        await callback.message.answer("Введите имя рекрутера.")
 
     @router.message(FeedbackStates.recruiter)
     async def receive_recruiter(message: Message, state: FSMContext) -> None:
         recruiter_name = message.text.strip()
         await state.update_data(recruiter_name=recruiter_name)
         await state.set_state(FeedbackStates.comms_rating)
-        await message.answer("РљР°Рє РѕС†РµРЅРёРІР°РµС‚Рµ РєРѕРјРјСѓРЅРёРєР°С†РёСЋ СЃ СЂРµРєСЂСѓС‚РµСЂРѕРј? (1-5)")
+        await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
 
     @router.message(FeedbackStates.comms_rating)
     async def receive_comms(message: Message, state: FSMContext) -> None:
@@ -377,7 +379,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         value = "да" if callback.data == "timeliness_yes" else "нет"
         await state.update_data(timeliness_rating=value)
         await state.set_state(FeedbackStates.relevance_rating)
-        await callback.message.answer("РќР°СЃРєРѕР»СЊРєРѕ СЂРµР»РµРІР°РЅС‚РЅС‹ РєР°РЅРґРёРґР°С‚С‹? (1-5)")
+        await callback.message.answer("Насколько релевантны кандидаты? (1-5)")
 
     @router.message(FeedbackStates.timeliness_rating)
     async def receive_time_text(message: Message, state: FSMContext) -> None:
@@ -388,7 +390,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         normalized = "да" if value in {"да", "yes"} else "нет"
         await state.update_data(timeliness_rating=normalized)
         await state.set_state(FeedbackStates.relevance_rating)
-        await message.answer("РќР°СЃРєРѕР»СЊРєРѕ СЂРµР»РµРІР°РЅС‚РЅС‹ РєР°РЅРґРёРґР°С‚С‹? (1-5)")
+        await message.answer("Насколько релевантны кандидаты? (1-5)")
     @router.message(FeedbackStates.relevance_rating)
     async def receive_relevance(message: Message, state: FSMContext) -> None:
         rating = await _validate_rating(message)
@@ -396,7 +398,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             return
         await state.update_data(relevance_rating=rating)
         await state.set_state(FeedbackStates.process_quality_rating)
-        await message.answer("РљР°Рє РѕС†РµРЅРёРІР°РµС‚Рµ РєР°С‡РµСЃС‚РІРѕ РїСЂРѕС†РµСЃСЃР° (РѕС€РёР±РєРё, С„РёРґР±РµРє, РїРѕРґРґРµСЂР¶РєР°, HR-РёРЅС‚РµСЂРІСЊСЋ)? (1-5)")
+        await message.answer("Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)")
 
     @router.message(FeedbackStates.process_quality_rating)
     async def receive_process_quality(message: Message, state: FSMContext) -> None:
@@ -405,44 +407,44 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             return
         await state.update_data(process_quality_rating=rating)
         await state.set_state(FeedbackStates.recommendations)
-        await message.answer("РљР°РєРёРµ СЂРµРєРѕРјРµРЅРґР°С†РёРё РїРѕ СѓР»СѓС‡С€РµРЅРёСЋ СЂР°Р±РѕС‚С‹ СЂРµРєСЂСѓС‚РµСЂР°? РћС‚РїСЂР°РІСЊС‚Рµ С‚РµРєСЃС‚ РёР»Рё РіРѕР»РѕСЃ.")
+        await message.answer("Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
 
     @router.message(FeedbackStates.recommendations)
     async def receive_recommendations(message: Message, state: FSMContext, bot: Bot) -> None:
         text: str | None = None
         if message.voice:
             if ctx.speech is None:
-                await message.answer("Р Р°СЃРїРѕР·РЅР°РІР°РЅРёРµ СЂРµС‡Рё РЅРµ РЅР°СЃС‚СЂРѕРµРЅРѕ. РћС‚РїСЂР°РІСЊС‚Рµ С‚РµРєСЃС‚РѕРј, РїРѕР¶Р°Р»СѓР№СЃС‚Р°.")
+                await message.answer("Распознавание речи не настроено. Отправьте текстом, пожалуйста.")
                 return
-            await message.answer("РџСЂРµРѕР±СЂР°Р·СѓРµРј РіРѕР»РѕСЃРѕРІРѕРµ РІ С‚РµРєСЃС‚...")
+            await message.answer("Преобразуем голосовое в текст...")
             file = await bot.get_file(message.voice.file_id)
             buffer = await bot.download_file(file.file_path)
             transcription = await ctx.speech.transcribe_bytes(buffer.read())
             if not transcription:
-                await message.answer("РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїРѕР·РЅР°С‚СЊ РіРѕР»РѕСЃ. РћС‚РїСЂР°РІСЊС‚Рµ С‚РµРєСЃС‚РѕРј, РїРѕР¶Р°Р»СѓР№СЃС‚Р°.")
+                await message.answer("Не удалось распознать голос. Отправьте текстом, пожалуйста.")
                 return
             text = transcription
-            await message.answer(f"РўСЂР°РЅСЃРєСЂРёРїС†РёСЏ:\n{text}")
+            await message.answer(f"Транскрипция:\n{text}")
         elif message.text:
             text = message.text.strip()
 
         if not text:
-            await message.answer("РћС‚РїСЂР°РІСЊС‚Рµ С‚РµРєСЃС‚ РёР»Рё РіРѕР»РѕСЃРѕРІРѕРµ СЃ СЂРµРєРѕРјРµРЅРґР°С†РёСЏРјРё.")
+            await message.answer("Отправьте текст или голосовое с рекомендациями.")
             return
 
         await state.update_data(recommendations=text, feedback_comment=text)
         data = await state.get_data()
         await state.set_state(FeedbackStates.confirm)
         summary = (
-            f"Р’Р°РєР°РЅСЃРёСЏ: {data.get('vacancy_title')}\n"
-            f"Р РµРєСЂСѓС‚РµСЂ: {data.get('recruiter_name')}\n"
-            f"РћР±С‰Р°СЏ РѕС†РµРЅРєР°: {data.get('overall_rating')}\n"
-            f"РљРѕРјРјСѓРЅРёРєР°С†РёСЏ: {data.get('comms_rating')}\n"
-            f"РЎСЂРѕРєРё Р·Р°РєСЂС‹С‚РёСЏ: {data.get('timeliness_rating')}\n"
-            f"Р РµР»РµРІР°РЅС‚РЅРѕСЃС‚СЊ РєР°РЅРґРёРґР°С‚РѕРІ: {data.get('relevance_rating')}\n"
-            f"РљР°С‡РµСЃС‚РІРѕ РїСЂРѕС†РµСЃСЃР°: {data.get('process_quality_rating')}\n"
-            f"Р РµРєРѕРјРµРЅРґР°С†РёРё: {text}\n\n"
-            "РЎРѕС…СЂР°РЅРёС‚СЊ РѕС‚Р·С‹РІ? РћС‚РІРµС‚СЊС‚Рµ 'РґР°' РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ РёР»Рё 'РЅРµС‚' РґР»СЏ РѕС‚РјРµРЅС‹."
+            f"Вакансия: {data.get('vacancy_title')}\n"
+            f"Рекрутер: {data.get('recruiter_name')}\n"
+            f"Общая оценка: {data.get('overall_rating')}\n"
+            f"Коммуникация: {data.get('comms_rating')}\n"
+            f"Сроки закрытия: {data.get('timeliness_rating')}\n"
+            f"Релевантность кандидатов: {data.get('relevance_rating')}\n"
+            f"Качество процесса: {data.get('process_quality_rating')}\n"
+            f"Рекомендации: {text}\n\n"
+            "Сохранить отзыв? Ответьте 'да' для сохранения или 'нет' для отмены."
         )
         await message.answer(summary, reply_markup=confirm_feedback_keyboard())
 
@@ -474,13 +476,13 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
                 ctx.sheets.append_feedback(record)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to write to Google Sheets: %s", exc)
-                await message.answer("РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РІ Google Sheets. РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ СѓРІРµРґРѕРјР»РµРЅ.")
+                await message.answer("Не удалось сохранить в Google Sheets. Администратор уведомлен.")
                 await ctx.feedback_buffer.add(record)
         else:
             await ctx.feedback_buffer.add(record)
             logger.warning("Google Sheets client not configured. Feedback buffered locally.")
         await state.clear()
-        await message.answer("РЎРїР°СЃРёР±Рѕ Р·Р° РѕР±СЂР°С‚РЅСѓСЋ СЃРІСЏР·СЊ! Р­С‚Рѕ РѕС‡РµРЅСЊ РІР°Р¶РЅРѕ РґР»СЏ РЅР°С€РµР№ РєРѕРјР°РЅРґС‹.")
+        await message.answer("Спасибо за обратную связь! Это очень важно для нашей команды.")
 
     @router.callback_query(lambda c: c.data == "confirm_feedback_yes")
     async def confirm_feedback_yes(callback: CallbackQuery, state: FSMContext) -> None:
@@ -491,17 +493,17 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
     async def confirm_feedback_no(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         await state.clear()
-        await callback.message.answer("РћС‚Р·С‹РІ РѕС‚РјРµРЅРµРЅ.")
+        await callback.message.answer("Отзыв отменен.")
 
     @router.message(FeedbackStates.confirm)
     async def confirm(message: Message, state: FSMContext) -> None:
         decision = (message.text or "").strip().lower()
-        if decision not in {"yes", "no", "РґР°", "РЅРµС‚"}:
-            await message.answer("РћС‚РІРµС‚СЊС‚Рµ 'РґР°' С‡С‚РѕР±С‹ СЃРѕС…СЂР°РЅРёС‚СЊ РёР»Рё 'РЅРµС‚' С‡С‚РѕР±С‹ РѕС‚РјРµРЅРёС‚СЊ.")
+        if decision not in {"yes", "no", "да", "нет"}:
+            await message.answer("Ответьте 'да' чтобы сохранить или 'нет' чтобы отменить.")
             return
-        if decision in {"no", "РЅРµС‚"}:
+        if decision in {"no", "нет"}:
             await state.clear()
-            await message.answer("РћС‚Р·С‹РІ РѕС‚РјРµРЅРµРЅ.")
+            await message.answer("Отзыв отменен.")
             return
 
         await _finalize_feedback(message, state)
