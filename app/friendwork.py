@@ -130,15 +130,15 @@ def create_friendwork_router(
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Candidate count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
-                if tech_interview_count is None:
-                    try:
-                        tech_interview_count = api_client.count_candidates_in_job(
-                            str(vacancy_id),
-                            status_name=ctx.settings.tech_interview_status_name,
-                            status_id=ctx.settings.tech_interview_status_id,
-                            page_size=ctx.settings.candidates_history_page_size,
-                            max_pages=50,
-                        )
+            if tech_interview_count is None:
+                try:
+                    tech_interview_count = api_client.count_candidates_in_job(
+                        str(vacancy_id),
+                        status_name=ctx.settings.tech_interview_status_name,
+                        status_id=ctx.settings.tech_interview_status_id,
+                        page_size=ctx.settings.candidates_history_page_size,
+                        max_pages=50,
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Tech interview count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
             hiring_manager_ids = []
