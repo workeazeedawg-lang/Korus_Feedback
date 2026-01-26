@@ -22,9 +22,20 @@ class FriendWorkClient:
         resp.raise_for_status()
         return resp.json()
 
-    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(
+        self,
+        path: str,
+        payload: Dict[str, Any],
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
-        resp = httpx.post(url, headers=self._headers(), json=payload, timeout=30)
+        resp = httpx.post(
+            url,
+            headers=self._headers(),
+            json=payload,
+            params=params,
+            timeout=30,
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -154,10 +165,21 @@ class FriendWorkClient:
         page = 1
         prev_page_marker = None
         while page <= max_pages:
-            payload: Dict[str, Any] = {"JobId": int(job_id), "Page": page, "PageSize": page_size}
+            payload: Dict[str, Any] = {
+                "JobId": int(job_id),
+                "jobId": int(job_id),
+                "JobIds": [int(job_id)],
+                "Page": page,
+                "PageSize": page_size,
+            }
             if statuses_ids:
                 payload["StatusesIds"] = statuses_ids
-            data = self._post("/Candidate/CandidatesHistories", payload)
+            # Some FriendWork deployments only honor jobId when passed as query param.
+            data = self._post(
+                "/Candidate/CandidatesHistories",
+                payload,
+                params={"jobId": job_id},
+            )
             items = (
                 data.get("CandidateHistories")
                 or data.get("candidateHistories")
