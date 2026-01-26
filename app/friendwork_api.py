@@ -215,7 +215,7 @@ class FriendWorkClient:
                 key = (
                     item.get("CandidateHistoryId")
                     or item.get("candidateHistoryId")
-                    or f\"{name}-{item.get('Timestamp')}-{item_job_id}\"
+                    or f"{name}-{item.get('Timestamp')}-{item_job_id}"
                 )
             else:
                 key = candidate_id
