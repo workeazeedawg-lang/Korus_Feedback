@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 
@@ -19,6 +19,12 @@ class FriendWorkClient:
     def get_job(self, job_id: str) -> Dict[str, Any]:
         url = f"{self.base_url}/jobs/{job_id}"
         resp = httpx.get(url, headers=self._headers(), timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+
+    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        url = f"{self.base_url}{path}"
+        resp = httpx.post(url, headers=self._headers(), json=payload, timeout=30)
         resp.raise_for_status()
         return resp.json()
 
@@ -137,3 +143,58 @@ class FriendWorkClient:
                 except Exception:
                     return None
         return None
+
+    def iter_candidate_histories(
+        self, job_id: str, page_size: int = 200, statuses_ids: Optional[List[int]] = None
+    ) -> Iterable[Dict[str, Any]]:
+        page = 1
+        while True:
+            payload: Dict[str, Any] = {"JobId": int(job_id), "Page": page, "PageSize": page_size}
+            if statuses_ids:
+                payload["StatusesIds"] = statuses_ids
+            data = self._post("/Candidate/CandidatesHistories", payload)
+            items = (
+                data.get("CandidateHistories")
+                or data.get("candidateHistories")
+                or data.get("Items")
+                or []
+            )
+            if not items:
+                break
+            for item in items:
+                yield item
+            total = data.get("TotalCount") or data.get("totalCount")
+            if total and page * page_size >= int(total):
+                break
+            if len(items) < page_size:
+                break
+            page += 1
+
+    def count_candidates_in_job(
+        self,
+        job_id: str,
+        status_name: Optional[str] = None,
+        page_size: int = 200,
+    ) -> int:
+        seen = set()
+        target = status_name.strip().lower() if status_name else None
+        for item in self.iter_candidate_histories(job_id, page_size=page_size):
+            name = str(item.get("Name") or item.get("name") or "").strip().lower()
+            if target and name != target:
+                continue
+            candidate_id = (
+                item.get("CandidateId")
+                or item.get("candidateId")
+                or item.get("CandidateID")
+            )
+            if candidate_id is None:
+                candidate = item.get("Candidate") or item.get("candidate")
+                if isinstance(candidate, dict):
+                    candidate_id = candidate.get("Id") or candidate.get("id")
+            key = candidate_id if candidate_id is not None else (
+                item.get("CandidateHistoryId")
+                or item.get("candidateHistoryId")
+                or f"{name}-{item.get('Timestamp')}"
+            )
+            seen.add(str(key))
+        return len(seen)

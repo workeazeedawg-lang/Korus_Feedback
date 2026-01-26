@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     friendwork_api_token: str | None = Field(default=None, env="FRIENDWORK_API_TOKEN")
     friendwork_api_base: str = Field("https://api.friend.work", env="FRIENDWORK_API_BASE")
     friendwork_allowed_recruiters: str = Field("", env="FRIENDWORK_ALLOWED_RECRUITERS")
+    tech_interview_status_name: str = Field("Техническое интервью 1", env="TECH_INTERVIEW_STATUS_NAME")
+    candidates_history_page_size: int = Field(200, env="CANDIDATES_HISTORY_PAGE_SIZE")
 
     speech_language_code: str = Field("en-US", env="SPEECH_LANGUAGE_CODE")
 

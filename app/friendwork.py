@@ -122,9 +122,22 @@ def create_friendwork_router(
             candidate_count = api_client.extract_candidate_count(job_data)
             tech_interview_count = api_client.extract_tech_interview_count(job_data)
             if candidate_count is None:
-                logger.warning("Candidate count not present in FriendWork job payload for %s", vacancy_id)
+                try:
+                    candidate_count = api_client.count_candidates_in_job(
+                        str(vacancy_id),
+                        page_size=ctx.settings.candidates_history_page_size,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Candidate count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
             if tech_interview_count is None:
-                logger.warning("Tech interview count not present in FriendWork job payload for %s", vacancy_id)
+                try:
+                    tech_interview_count = api_client.count_candidates_in_job(
+                        str(vacancy_id),
+                        status_name=ctx.settings.tech_interview_status_name,
+                        page_size=ctx.settings.candidates_history_page_size,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Tech interview count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
             hiring_manager_ids = []
             if ctx.sheets:
                 names = api_client.extract_hiring_manager_names(job_data)
@@ -178,6 +191,23 @@ def create_friendwork_router(
                     candidate_count = api_client.extract_candidate_count(job_data)
                 if tech_interview_count is None:
                     tech_interview_count = api_client.extract_tech_interview_count(job_data)
+                if candidate_count is None:
+                    try:
+                        candidate_count = api_client.count_candidates_in_job(
+                            str(vacancy_id),
+                            page_size=ctx.settings.candidates_history_page_size,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Candidate count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
+                if tech_interview_count is None:
+                    try:
+                        tech_interview_count = api_client.count_candidates_in_job(
+                            str(vacancy_id),
+                            status_name=ctx.settings.tech_interview_status_name,
+                            page_size=ctx.settings.candidates_history_page_size,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Tech interview count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
                 if not hiring_manager_ids and ctx.sheets:
                     names = api_client.extract_hiring_manager_names(job_data)
                     if names:
