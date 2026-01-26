@@ -56,8 +56,8 @@ class FeedbackStates(StatesGroup):
 def feedback_keyboard(vacancy_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="РћСЃС‚Р°РІРёС‚СЊ РѕС‚Р·С‹РІ СЃРµР№С‡Р°СЃ", callback_data=f"start_feedback:{vacancy_id}")],
-            [InlineKeyboardButton(text="РќР°РїРѕРјРЅРёС‚СЊ РїРѕР·Р¶Рµ", callback_data=f"remind_feedback:{vacancy_id}")],
+            [InlineKeyboardButton(text="Оставить отзыв сейчас", callback_data=f"start_feedback:{vacancy_id}")],
+            [InlineKeyboardButton(text="Напомнить позже", callback_data=f"remind_feedback:{vacancy_id}")],
         ]
     )
 
@@ -66,8 +66,8 @@ def recruiter_choice_keyboard(recruiter_name: str) -> InlineKeyboardMarkup:
     label = recruiter_name.strip() if recruiter_name.strip() else "РќРµ Р·РЅР°СЋ"
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f"РСЃРїРѕР»СЊР·РѕРІР°С‚СЊ: {label}", callback_data="recruiter_use_default")],
-            [InlineKeyboardButton(text="Р’РІРµСЃС‚Рё РґСЂСѓРіРѕРµ РёРјСЏ", callback_data="recruiter_other")],
+            [InlineKeyboardButton(text=f"Использовать: {label}", callback_data="recruiter_use_default")],
+            [InlineKeyboardButton(text="Ввести другое имя", callback_data="recruiter_other")],
         ]
     )
 
@@ -75,8 +75,8 @@ def recruiter_choice_keyboard(recruiter_name: str) -> InlineKeyboardMarkup:
 def confirm_feedback_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Р”Р°, СЃРѕС…СЂР°РЅРёС‚СЊ", callback_data="confirm_feedback_yes")],
-            [InlineKeyboardButton(text="РќРµС‚, РѕС‚РјРµРЅРёС‚СЊ", callback_data="confirm_feedback_no")],
+            [InlineKeyboardButton(text="Да, сохранить", callback_data="confirm_feedback_yes")],
+            [InlineKeyboardButton(text="Нет, отменить", callback_data="confirm_feedback_no")],
         ]
     )
 
@@ -106,9 +106,9 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
         if user and user.status != "active":
             continue
         text = (
-            f"Р’Р°РєР°РЅСЃРёСЏ Р·Р°РєСЂС‹С‚Р°: {vacancy.vacancy_title}\n"
-            f"Р РµРєСЂСѓС‚РµСЂ: {vacancy.recruiter_name}\n"
-            "РњРѕР¶РµС‚Рµ РѕСЃС‚Р°РІРёС‚СЊ РѕС‚Р·С‹РІ СЃРµР№С‡Р°СЃ?"
+            f"Вакансия закрыта: {vacancy.vacancy_title}\n"
+            f"Рекрутер: {vacancy.recruiter_name}\n"
+            "Можете оставить отзыв сейчас?"
         )
         try:
             await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
@@ -139,9 +139,9 @@ async def send_feedback_request_to_user(
     if user and user.status != "active":
         return
     text = (
-        f"Р’Р°РєР°РЅСЃРёСЏ Р·Р°РєСЂС‹С‚Р°: {vacancy.vacancy_title}\n"
-        f"Р РµРєСЂСѓС‚РµСЂ: {vacancy.recruiter_name}\n"
-        "РњРѕР¶РµС‚Рµ РѕСЃС‚Р°РІРёС‚СЊ РѕС‚Р·С‹РІ СЃРµР№С‡Р°СЃ?"
+        f"Вакансия закрыта: {vacancy.vacancy_title}\n"
+        f"Рекрутер: {vacancy.recruiter_name}\n"
+        "Можете оставить отзыв сейчас?"
     )
     try:
         await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
