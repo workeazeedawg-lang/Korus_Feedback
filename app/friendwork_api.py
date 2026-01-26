@@ -196,7 +196,8 @@ class FriendWorkClient:
         target = status_name.strip().lower() if status_name else None
         for item in self.iter_candidate_histories(job_id, page_size=page_size, max_pages=max_pages):
             item_job_id = item.get("JobId") or item.get("jobId")
-            if item_job_id is not None and str(item_job_id) != str(job_id):
+            # Only count items that explicitly match the vacancy job id.
+            if item_job_id is None or str(item_job_id) != str(job_id):
                 continue
             name = str(item.get("Name") or item.get("name") or "").strip().lower()
             if target and not (name == target or name.startswith(target)):
