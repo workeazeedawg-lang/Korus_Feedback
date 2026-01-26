@@ -145,10 +145,15 @@ class FriendWorkClient:
         return None
 
     def iter_candidate_histories(
-        self, job_id: str, page_size: int = 200, statuses_ids: Optional[List[int]] = None
+        self,
+        job_id: str,
+        page_size: int = 200,
+        statuses_ids: Optional[List[int]] = None,
+        max_pages: int = 50,
     ) -> Iterable[Dict[str, Any]]:
         page = 1
-        while True:
+        prev_page_marker = None
+        while page <= max_pages:
             payload: Dict[str, Any] = {"JobId": int(job_id), "Page": page, "PageSize": page_size}
             if statuses_ids:
                 payload["StatusesIds"] = statuses_ids
@@ -161,6 +166,16 @@ class FriendWorkClient:
             )
             if not items:
                 break
+            first_item = items[0] if isinstance(items, list) and items else {}
+            page_marker = (
+                first_item.get("CandidateHistoryId")
+                or first_item.get("candidateHistoryId")
+                or first_item.get("Id")
+                or f"{first_item.get('Name')}-{first_item.get('Timestamp')}-{first_item.get('JobId')}"
+            )
+            if page_marker == prev_page_marker:
+                break
+            prev_page_marker = page_marker
             for item in items:
                 yield item
             total = data.get("TotalCount") or data.get("totalCount")
@@ -175,10 +190,11 @@ class FriendWorkClient:
         job_id: str,
         status_name: Optional[str] = None,
         page_size: int = 200,
+        max_pages: int = 50,
     ) -> int:
         seen = set()
         target = status_name.strip().lower() if status_name else None
-        for item in self.iter_candidate_histories(job_id, page_size=page_size):
+        for item in self.iter_candidate_histories(job_id, page_size=page_size, max_pages=max_pages):
             name = str(item.get("Name") or item.get("name") or "").strip().lower()
             if target and name != target:
                 continue
