@@ -103,12 +103,19 @@ class Reminder:
     telegram_id: int
     vacancy_id: str
     next_at: datetime
+    first_at: datetime
+    remind_count: int = 0
+    notified_admin: bool = False
 
 
 class ReminderStore:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._items: Dict[Tuple[int, str], Reminder] = {}
+
+    async def get(self, telegram_id: int, vacancy_id: str) -> Optional[Reminder]:
+        async with self._lock:
+            return self._items.get((telegram_id, vacancy_id))
 
     async def upsert(self, reminder: Reminder) -> None:
         async with self._lock:

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -95,9 +95,55 @@ async def reminder_loop() -> None:
                 if vacancy:
                     await ctx.vacancy_store.upsert(vacancy)
             if vacancy:
-                await send_feedback_request_to_user(bot, ctx, vacancy, reminder.telegram_id)
-            next_at = next_daily_moscow()
-            await ctx.reminders.upsert(Reminder(reminder.telegram_id, reminder.vacancy_id, next_at))
+                overdue_days = (now - reminder.first_at).days
+                if (overdue_days >= 5 or reminder.remind_count >= 5) and not reminder.notified_admin:
+                    if ctx.settings.admin_chat_id is not None:
+                        link = vacancy.job_url or f"https://app.friend.work/Job/Edit/{vacancy.vacancy_id}"
+                        text = (
+                            f"Нанимающий менеджер по вакансии \"{link}\" "
+                            "не прошёл опрос по работе рекрутера в срок."
+                        )
+                        try:
+                            await bot.send_message(ctx.settings.admin_chat_id, text)
+                        except Exception as exc:  # noqa: BLE001
+                            logger.error("Failed to notify admin: %s", exc)
+                    reminder = Reminder(
+                        reminder.telegram_id,
+                        reminder.vacancy_id,
+                        reminder.next_at,
+                        first_at=reminder.first_at,
+                        remind_count=reminder.remind_count,
+                        notified_admin=True,
+                    )
+                if reminder.remind_count > 0:
+                    await send_feedback_request_to_user(bot, ctx, vacancy, reminder.telegram_id)
+                    next_at = next_daily_moscow()
+                    await ctx.reminders.upsert(
+                        Reminder(
+                            reminder.telegram_id,
+                            reminder.vacancy_id,
+                            next_at,
+                            first_at=reminder.first_at,
+                            remind_count=reminder.remind_count,
+                            notified_admin=reminder.notified_admin,
+                        )
+                    )
+                else:
+                    # No reminder requested; stop tracking after admin alert.
+                    if reminder.notified_admin:
+                        await ctx.reminders.remove(reminder.telegram_id, reminder.vacancy_id)
+                    else:
+                        next_at = reminder.first_at + timedelta(days=5)
+                        await ctx.reminders.upsert(
+                            Reminder(
+                                reminder.telegram_id,
+                                reminder.vacancy_id,
+                                next_at,
+                                first_at=reminder.first_at,
+                                remind_count=reminder.remind_count,
+                                notified_admin=reminder.notified_admin,
+                            )
+                        )
 
 
 @app.on_event("startup")

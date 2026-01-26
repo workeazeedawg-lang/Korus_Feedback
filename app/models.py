@@ -40,7 +40,7 @@ class FeedbackRecord:
     feedback_comment: str
     overall_rating: int
     comms_rating: int
-    timeliness_rating: int
+    timeliness_rating: str
     relevance_rating: int
     process_quality_rating: int
     recommendations: str
