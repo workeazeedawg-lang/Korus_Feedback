@@ -195,8 +195,11 @@ class FriendWorkClient:
         seen = set()
         target = status_name.strip().lower() if status_name else None
         for item in self.iter_candidate_histories(job_id, page_size=page_size, max_pages=max_pages):
+            item_job_id = item.get("JobId") or item.get("jobId")
+            if item_job_id is not None and str(item_job_id) != str(job_id):
+                continue
             name = str(item.get("Name") or item.get("name") or "").strip().lower()
-            if target and name != target:
+            if target and not (name == target or name.startswith(target)):
                 continue
             candidate_id = (
                 item.get("CandidateId")
@@ -207,10 +210,13 @@ class FriendWorkClient:
                 candidate = item.get("Candidate") or item.get("candidate")
                 if isinstance(candidate, dict):
                     candidate_id = candidate.get("Id") or candidate.get("id")
-            key = candidate_id if candidate_id is not None else (
-                item.get("CandidateHistoryId")
-                or item.get("candidateHistoryId")
-                or f"{name}-{item.get('Timestamp')}"
-            )
+            if candidate_id is None:
+                key = (
+                    item.get("CandidateHistoryId")
+                    or item.get("candidateHistoryId")
+                    or f\"{name}-{item.get('Timestamp')}-{item_job_id}\"
+                )
+            else:
+                key = candidate_id
             seen.add(str(key))
         return len(seen)
