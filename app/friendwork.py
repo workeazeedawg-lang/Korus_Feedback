@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, List, Optional
 
 from aiogram import Bot, Dispatcher
@@ -73,10 +74,15 @@ def create_friendwork_router(
         hiring_manager_ids = _get_value(raw, "hiring_manager_ids", "hiringManagerIds") or []
 
         status_value = ""
+        closed_date = None
+        job_url = None
+        candidate_count = None
+        tech_interview_count = None
         if job_data:
             job_id = _get_value(job_data, "jobId", "id")
             if job_id is not None:
                 vacancy_id = str(job_id)
+                job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
             status = _get_value(job_data, "status", "Status")
             if status:
                 status_value = str(status).strip().lower()
@@ -91,6 +97,10 @@ def create_friendwork_router(
                             if live_value in {"closed", "закрыта", "закрыто", "закрыт"}:
                                 job_data = live_job
                                 status_value = live_value
+                                job_id = _get_value(job_data, "jobId", "id")
+                                if job_id is not None:
+                                    vacancy_id = str(job_id)
+                                    job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
                             else:
                                 logger.info(
                                     "Ignoring job status %s for vacancy %s",
@@ -104,8 +114,17 @@ def create_friendwork_router(
                     else:
                         logger.info("Ignoring job status %s for vacancy %s", status_value, vacancy_id)
                         return {"status": "ignored_status", "value": str(status)}
+            if status_value in {"closed", "закрыта", "закрыто", "закрыт"}:
+                tz = ZoneInfo("Europe/Moscow")
+                closed_date = datetime.now(tz).strftime("%d.%m.%y")
             vacancy_title = vacancy_title or (_get_value(job_data, "name", "title") or "")
             recruiter_name = recruiter_name or (api_client.extract_recruiter_name(job_data) or "")
+            candidate_count = api_client.extract_candidate_count(job_data)
+            tech_interview_count = api_client.extract_tech_interview_count(job_data)
+            if candidate_count is None:
+                logger.warning("Candidate count not present in FriendWork job payload for %s", vacancy_id)
+            if tech_interview_count is None:
+                logger.warning("Tech interview count not present in FriendWork job payload for %s", vacancy_id)
             hiring_manager_ids = []
             if ctx.sheets:
                 names = api_client.extract_hiring_manager_names(job_data)
@@ -151,6 +170,14 @@ def create_friendwork_router(
                 job_data = api_client.get_job(str(vacancy_id))
                 vacancy_title = vacancy_title or job_data.get("name") or ""
                 recruiter_name = recruiter_name or (api_client.extract_recruiter_name(job_data) or "")
+                job_url = job_url or f"https://app.friend.work/Job/Edit/{vacancy_id}"
+                if not closed_date:
+                    tz = ZoneInfo("Europe/Moscow")
+                    closed_date = datetime.now(tz).strftime("%d.%m.%y")
+                if candidate_count is None:
+                    candidate_count = api_client.extract_candidate_count(job_data)
+                if tech_interview_count is None:
+                    tech_interview_count = api_client.extract_tech_interview_count(job_data)
                 if not hiring_manager_ids and ctx.sheets:
                     names = api_client.extract_hiring_manager_names(job_data)
                     if names:
@@ -185,6 +212,10 @@ def create_friendwork_router(
             vacancy_title=vacancy_title,
             recruiter_name=recruiter_name,
             hiring_manager_ids=[int(x) for x in hiring_manager_ids if str(x).isdigit()],
+            closed_date=closed_date,
+            job_url=job_url,
+            candidate_count=candidate_count,
+            tech_interview_count=tech_interview_count,
         )
         await ctx.vacancy_store.upsert(vacancy)
         if ctx.sheets:

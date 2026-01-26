@@ -107,3 +107,33 @@ class FriendWorkClient:
             seen.add(key)
             unique.append(name)
         return unique
+
+    @staticmethod
+    def extract_candidate_count(job_data: Dict[str, Any]) -> Optional[int]:
+        for key in (
+            "candidateCount",
+            "candidatesCount",
+            "totalCandidates",
+            "totalCandidateCount",
+            "candidateCountAll",
+        ):
+            if key in job_data and job_data[key] is not None:
+                try:
+                    return int(job_data[key])
+                except Exception:
+                    return None
+        return None
+
+    @staticmethod
+    def extract_tech_interview_count(job_data: Dict[str, Any]) -> Optional[int]:
+        for key in (
+            "techInterviewCount",
+            "technicalInterviewCount",
+            "techInterviewsCount",
+        ):
+            if key in job_data and job_data[key] is not None:
+                try:
+                    return int(job_data[key])
+                except Exception:
+                    return None
+        return None

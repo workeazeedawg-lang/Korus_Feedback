@@ -55,7 +55,10 @@ class SheetWebhookClient:
                 record.timeliness_rating,
                 record.relevance_rating,
                 record.process_quality_rating,
-                record.submitted_at.isoformat(),
+                record.closed_date,
+                record.job_url,
+                record.candidate_count,
+                record.tech_interview_count,
             ],
             # Explicit column names to help Apps Script map the row.
             "columns": [
@@ -81,7 +84,10 @@ class SheetWebhookClient:
                 record.timeliness_rating,
                 record.relevance_rating,
                 record.process_quality_rating,
-                record.submitted_at.isoformat(),
+                record.closed_date,
+                record.job_url,
+                record.candidate_count,
+                record.tech_interview_count,
             ],
         }
 
@@ -183,6 +189,10 @@ class SheetWebhookClient:
             "vacancy_title": vacancy.vacancy_title,
             "recruiter_name": vacancy.recruiter_name,
             "hiring_manager_ids": vacancy.hiring_manager_ids,
+            "closed_date": vacancy.closed_date,
+            "job_url": vacancy.job_url,
+            "candidate_count": vacancy.candidate_count,
+            "tech_interview_count": vacancy.tech_interview_count,
         }
         resp = self._post(payload)
         if resp.status_code >= 400:
@@ -209,6 +219,10 @@ class SheetWebhookClient:
             vacancy_title=v.get("vacancy_title") or "",
             recruiter_name=v.get("recruiter_name") or "",
             hiring_manager_ids=list(v.get("hiring_manager_ids") or []),
+            closed_date=v.get("closed_date"),
+            job_url=v.get("job_url"),
+            candidate_count=v.get("candidate_count"),
+            tech_interview_count=v.get("tech_interview_count"),
         )
 
 

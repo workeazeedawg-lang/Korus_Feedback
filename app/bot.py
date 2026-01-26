@@ -211,6 +211,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             vacancy_title=vacancy.vacancy_title,
             recruiter_name=vacancy.recruiter_name,
             hiring_manager_full_name=user.full_name,
+            closed_date=vacancy.closed_date or "",
+            job_url=vacancy.job_url or "",
+            candidate_count=vacancy.candidate_count or 0,
+            tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
         await callback.message.answer("Общая оценка работы рекрутера (1-5)?")
@@ -232,6 +236,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             vacancy_title="Manual trigger",
             recruiter_name="Unknown",
             hiring_manager_ids=[message.from_user.id],
+            closed_date="",
+            job_url="",
+            candidate_count=0,
+            tech_interview_count=0,
         )
         user = await get_registered_user(message.from_user.id, message.from_user.username)
         if not user:
@@ -245,6 +253,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             vacancy_title=vacancy.vacancy_title,
             recruiter_name=vacancy.recruiter_name,
             hiring_manager_full_name=user.full_name,
+            closed_date=vacancy.closed_date or "",
+            job_url=vacancy.job_url or "",
+            candidate_count=vacancy.candidate_count or 0,
+            tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
         await message.answer("Запускаю ручной опрос. Общая оценка работы рекрутера (1-5)?")
@@ -378,6 +390,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             vacancy_title=data.get("vacancy_title", ""),
             recruiter_name=data.get("recruiter_name", ""),
             hiring_manager_full_name=data.get("hiring_manager_full_name", message.from_user.full_name or ""),
+            closed_date=data.get("closed_date", ""),
+            job_url=data.get("job_url", ""),
+            candidate_count=int(data.get("candidate_count") or 0),
+            tech_interview_count=int(data.get("tech_interview_count") or 0),
             telegram_user_id=message.from_user.id,
             feedback_comment=data.get("feedback_comment", ""),
             overall_rating=data.get("overall_rating", 0),

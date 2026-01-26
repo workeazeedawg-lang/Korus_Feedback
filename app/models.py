@@ -20,6 +20,10 @@ class VacancyAssignment:
     vacancy_title: str
     recruiter_name: str
     hiring_manager_ids: List[int] = field(default_factory=list)
+    closed_date: str | None = None
+    job_url: str | None = None
+    candidate_count: int | None = None
+    tech_interview_count: int | None = None
 
 
 @dataclass
@@ -28,6 +32,10 @@ class FeedbackRecord:
     vacancy_title: str
     recruiter_name: str
     hiring_manager_full_name: str
+    closed_date: str
+    job_url: str
+    candidate_count: int
+    tech_interview_count: int
     telegram_user_id: int
     feedback_comment: str
     overall_rating: int
