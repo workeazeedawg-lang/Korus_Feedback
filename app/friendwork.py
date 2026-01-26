@@ -130,14 +130,15 @@ def create_friendwork_router(
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Candidate count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
-            if tech_interview_count is None:
-                try:
-                    tech_interview_count = api_client.count_candidates_in_job(
-                        str(vacancy_id),
-                        status_name=ctx.settings.tech_interview_status_name,
-                        page_size=ctx.settings.candidates_history_page_size,
-                        max_pages=50,
-                    )
+                if tech_interview_count is None:
+                    try:
+                        tech_interview_count = api_client.count_candidates_in_job(
+                            str(vacancy_id),
+                            status_name=ctx.settings.tech_interview_status_name,
+                            status_id=ctx.settings.tech_interview_status_id,
+                            page_size=ctx.settings.candidates_history_page_size,
+                            max_pages=50,
+                        )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Tech interview count not present in FriendWork job payload for %s: %s", vacancy_id, exc)
             hiring_manager_ids = []
@@ -172,7 +173,8 @@ def create_friendwork_router(
             await notify_admin("FriendWork webhook missing vacancy id.")
             return {"status": "missing_vacancy_id"}
 
-        if not event_id and status_value in {"closed", "закрыта", "закрыто", "закрыт"}:
+        if status_value in {"closed", "закрыта", "закрыто", "закрыт"}:
+            # Deduplicate repeated close events for the same vacancy.
             event_id = f"closed-{vacancy_id}"
         event_id = str(event_id or f"job-{vacancy_id}-{datetime.utcnow().isoformat()}")
         if await event_store.seen(event_id):
@@ -206,6 +208,7 @@ def create_friendwork_router(
                         tech_interview_count = api_client.count_candidates_in_job(
                             str(vacancy_id),
                             status_name=ctx.settings.tech_interview_status_name,
+                            status_id=ctx.settings.tech_interview_status_id,
                             page_size=ctx.settings.candidates_history_page_size,
                         )
                     except Exception as exc:  # noqa: BLE001

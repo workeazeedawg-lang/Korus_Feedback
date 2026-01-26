@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from typing import Optional
 
 import httpx
@@ -66,12 +66,15 @@ class SheetWebhookClient:
                 "Нанимающий менеджер",
                 "Рекомендации по улучшению работы рекрутера",
                 "Рекрутер",
-                "Общая оценка работы рекрутера? (1-5)",
+                "Общая оценка работа рекрутера? (1-5)",
                 "Как оцениваете коммуникацию с рекрутером? (1-5)",
                 "Вакансия закрыта в комфортные сроки? (1-5)",
                 "Насколько релевантны кандидаты? (1-5)",
                 "Как оцениваете качество процесса? (1-5)",
-                "Дата и время",
+                "Дата и время закрытия вакансии",
+                "Ссылка на вакансию",
+                "Кол-во кандидатов на вакансии",
+                "Кол-во тех. интервью",
             ],
             # Duplicate row under a generic key in case the script expects it.
             "values": [
@@ -230,3 +233,6 @@ class GoogleSheetClient(SheetWebhookClient):
     """
     Backward-compatible client name. Uses the Apps Script webhook under the hood.
     """
+
+
+

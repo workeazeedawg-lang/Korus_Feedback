@@ -189,18 +189,25 @@ class FriendWorkClient:
         self,
         job_id: str,
         status_name: Optional[str] = None,
+        status_id: Optional[int] = None,
         page_size: int = 200,
         max_pages: int = 50,
     ) -> int:
         seen = set()
         target = status_name.strip().lower() if status_name else None
-        for item in self.iter_candidate_histories(job_id, page_size=page_size, max_pages=max_pages):
+        statuses_ids = [int(status_id)] if status_id is not None else None
+        for item in self.iter_candidate_histories(
+            job_id,
+            page_size=page_size,
+            statuses_ids=statuses_ids,
+            max_pages=max_pages,
+        ):
             item_job_id = item.get("JobId") or item.get("jobId")
             # Only count items that explicitly match the vacancy job id.
             if item_job_id is None or str(item_job_id) != str(job_id):
                 continue
             name = str(item.get("Name") or item.get("name") or "").strip().lower()
-            if target and not (name == target or name.startswith(target)):
+            if target and target not in name:
                 continue
             candidate_id = (
                 item.get("CandidateId")
@@ -212,12 +219,7 @@ class FriendWorkClient:
                 if isinstance(candidate, dict):
                     candidate_id = candidate.get("Id") or candidate.get("id")
             if candidate_id is None:
-                key = (
-                    item.get("CandidateHistoryId")
-                    or item.get("candidateHistoryId")
-                    or f"{name}-{item.get('Timestamp')}-{item_job_id}"
-                )
-            else:
-                key = candidate_id
-            seen.add(str(key))
+                # Skip items without a candidate id to avoid overcounting history entries.
+                continue
+            seen.add(str(candidate_id))
         return len(seen)
