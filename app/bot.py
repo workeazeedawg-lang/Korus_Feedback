@@ -512,6 +512,12 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         )
         if ctx.sheets:
             try:
+                logger.info(
+                    "Feedback payload preview: vacancy_id=%s closed_date=%s job_url=%s",
+                    record.vacancy_id,
+                    record.closed_date,
+                    record.job_url,
+                )
                 ctx.sheets.append_feedback(record)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to write to Google Sheets: %s", exc)
