@@ -156,19 +156,35 @@ def create_friendwork_router(
                 for name in names:
                     user = ctx.sheets.get_user_by_name(name)
                     if user and user.telegram_id:
+                        logger.info("Matched hiring manager '%s' to Telegram ID %s via sheet lookup.", name, user.telegram_id)
                         hiring_manager_ids.append(user.telegram_id)
                         continue
                     if user and user.username:
                         stored = await ctx.user_store.find_by_username(user.username)
                         if stored:
+                            logger.info(
+                                "Matched hiring manager '%s' to Telegram ID %s via username '%s'.",
+                                name,
+                                stored.telegram_id,
+                                user.username,
+                            )
                             hiring_manager_ids.append(stored.telegram_id)
                             continue
                     stored = await ctx.user_store.find_by_full_name(name)
                     if stored:
+                        logger.info("Matched hiring manager '%s' to Telegram ID %s via full name cache.", name, stored.telegram_id)
                         hiring_manager_ids.append(stored.telegram_id)
                         continue
                     if user:
-                        logger.warning("User found for %s but missing telegram ID.", name)
+                        logger.warning(
+                            "User found for '%s' but missing Telegram ID. Sheet user: full_name='%s', username='%s', telegram_id='%s'",
+                            name,
+                            user.full_name,
+                            user.username,
+                            user.telegram_id,
+                        )
+                    else:
+                        logger.warning("No sheet user match found for hiring manager '%s'.", name)
                 if names and not hiring_manager_ids:
                     logger.warning("No matching users found for hiring manager names.")
 
@@ -225,19 +241,35 @@ def create_friendwork_router(
                     for name in names:
                         user = ctx.sheets.get_user_by_name(name)
                         if user and user.telegram_id:
+                            logger.info("Matched hiring manager '%s' to Telegram ID %s via sheet lookup.", name, user.telegram_id)
                             hiring_manager_ids.append(user.telegram_id)
                             continue
                         if user and user.username:
                             stored = await ctx.user_store.find_by_username(user.username)
                             if stored:
+                                logger.info(
+                                    "Matched hiring manager '%s' to Telegram ID %s via username '%s'.",
+                                    name,
+                                    stored.telegram_id,
+                                    user.username,
+                                )
                                 hiring_manager_ids.append(stored.telegram_id)
                                 continue
                         stored = await ctx.user_store.find_by_full_name(name)
                         if stored:
+                            logger.info("Matched hiring manager '%s' to Telegram ID %s via full name cache.", name, stored.telegram_id)
                             hiring_manager_ids.append(stored.telegram_id)
                             continue
                         if user:
-                            logger.warning("User found for %s but missing telegram ID.", name)
+                            logger.warning(
+                                "User found for '%s' but missing Telegram ID. Sheet user: full_name='%s', username='%s', telegram_id='%s'",
+                                name,
+                                user.full_name,
+                                user.username,
+                                user.telegram_id,
+                            )
+                        else:
+                            logger.warning("No sheet user match found for hiring manager '%s'.", name)
                     if names and not hiring_manager_ids:
                         logger.warning("No matching users found for hiring manager names.")
             except Exception as exc:  # noqa: BLE001

@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
+import asyncio
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command, CommandStart
@@ -110,26 +111,41 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
             f"Рекрутер: {vacancy.recruiter_name}\n"
             "Можете оставить отзыв сейчас?"
         )
-        try:
-            await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to send feedback request to %s: %s", manager_id, exc)
-        else:
-            # Track initial request to notify admin if no action in 5 days.
-            existing = await ctx.reminders.get(manager_id, vacancy.vacancy_id)
-            if not existing:
-                now = datetime.now(ZoneInfo("Europe/Moscow"))
-                next_at = now + timedelta(days=5)
-                await ctx.reminders.upsert(
-                    Reminder(
-                        manager_id,
-                        vacancy.vacancy_id,
-                        next_at,
-                        first_at=now,
-                        remind_count=0,
-                        notified_admin=False,
-                    )
+        sent = False
+        last_exc: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
+                sent = True
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                logger.warning(
+                    "Failed to send feedback request to %s on attempt %s/3: %s",
+                    manager_id,
+                    attempt,
+                    exc,
                 )
+                if attempt < 3:
+                    await asyncio.sleep(2)
+        if not sent:
+            logger.warning("Giving up sending feedback request to %s after 3 attempts: %s", manager_id, last_exc)
+            continue
+        # Track initial request to notify admin if no action in 5 days.
+        existing = await ctx.reminders.get(manager_id, vacancy.vacancy_id)
+        if not existing:
+            now = datetime.now(ZoneInfo("Europe/Moscow"))
+            next_at = now + timedelta(days=5)
+            await ctx.reminders.upsert(
+                Reminder(
+                    manager_id,
+                    vacancy.vacancy_id,
+                    next_at,
+                    first_at=now,
+                    remind_count=0,
+                    notified_admin=False,
+                )
+            )
 
 
 async def send_feedback_request_to_user(
@@ -143,10 +159,22 @@ async def send_feedback_request_to_user(
         f"Рекрутер: {vacancy.recruiter_name}\n"
         "Можете оставить отзыв сейчас?"
     )
-    try:
-        await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to send feedback request to %s: %s", manager_id, exc)
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            await bot.send_message(manager_id, text, reply_markup=feedback_keyboard(vacancy.vacancy_id))
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            logger.warning(
+                "Failed to send feedback request to %s on attempt %s/3: %s",
+                manager_id,
+                attempt,
+                exc,
+            )
+            if attempt < 3:
+                await asyncio.sleep(2)
+    logger.warning("Giving up sending feedback request to %s after 3 attempts: %s", manager_id, last_exc)
 
 
 def register_handlers(router: Router, ctx: AppContext) -> None:
