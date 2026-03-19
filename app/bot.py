@@ -256,6 +256,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         if not vacancy:
             await callback.message.answer("Не могу найти вакансию. Напишите администратору.")
             return
+        if not vacancy.job_url and vacancy_id and vacancy_id != "manual":
+            vacancy.job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
+        if not vacancy.closed_date and vacancy_id and vacancy_id != "manual":
+            vacancy.closed_date = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%y")
         user = await get_registered_user(callback.from_user.id, callback.from_user.username)
         if not user:
             await callback.message.answer(
