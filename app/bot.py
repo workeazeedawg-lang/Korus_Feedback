@@ -483,14 +483,21 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
     async def _finalize_feedback(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         vacancy_id = data.get("vacancy_id", "")
+        closed_date = data.get("closed_date", "")
+        job_url = data.get("job_url", "")
+        if vacancy_id and vacancy_id != "manual":
+            if not closed_date:
+                closed_date = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%y")
+            if not job_url:
+                job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
         await ctx.reminders.remove(message.from_user.id, vacancy_id)
         record = FeedbackRecord(
             vacancy_id=data.get("vacancy_id", ""),
             vacancy_title=data.get("vacancy_title", ""),
             recruiter_name=data.get("recruiter_name", ""),
             hiring_manager_full_name=data.get("hiring_manager_full_name", message.from_user.full_name or ""),
-            closed_date=data.get("closed_date", ""),
-            job_url=data.get("job_url", ""),
+            closed_date=closed_date,
+            job_url=job_url,
             candidate_count=int(data.get("candidate_count") or 0),
             tech_interview_count=int(data.get("tech_interview_count") or 0),
             telegram_user_id=message.from_user.id,
