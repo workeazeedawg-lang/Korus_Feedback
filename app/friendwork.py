@@ -24,6 +24,12 @@ class FriendWorkEvent(BaseModel):
     hiring_manager_ids: List[int]
 
 
+def build_friendwork_job_url(vacancy_id: str | None) -> str | None:
+    if not vacancy_id:
+        return None
+    return f"https://app.friend.work/Job/Edit/{vacancy_id}"
+
+
 def create_friendwork_router(
     ctx: AppContext, bot: Bot, dp: Dispatcher, event_store: EventStore
 ) -> APIRouter:
@@ -82,7 +88,7 @@ def create_friendwork_router(
             job_id = _get_value(job_data, "jobId", "id")
             if job_id is not None:
                 vacancy_id = str(job_id)
-                job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
+                job_url = build_friendwork_job_url(vacancy_id)
             status = _get_value(job_data, "status", "Status")
             if status:
                 status_value = str(status).strip().lower()
@@ -100,7 +106,7 @@ def create_friendwork_router(
                                 job_id = _get_value(job_data, "jobId", "id")
                                 if job_id is not None:
                                     vacancy_id = str(job_id)
-                                    job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
+                                    job_url = build_friendwork_job_url(vacancy_id)
                             else:
                                 logger.info(
                                     "Ignoring job status %s for vacancy %s",
@@ -206,7 +212,7 @@ def create_friendwork_router(
                 job_data = api_client.get_job(str(vacancy_id))
                 vacancy_title = vacancy_title or job_data.get("name") or ""
                 recruiter_name = recruiter_name or (api_client.extract_recruiter_name(job_data) or "")
-                job_url = job_url or f"https://app.friend.work/Job/Edit/{vacancy_id}"
+                job_url = job_url or build_friendwork_job_url(str(vacancy_id))
                 if not closed_date:
                     tz = ZoneInfo("Europe/Moscow")
                     closed_date = datetime.now(tz).strftime("%d.%m.%y")
@@ -278,6 +284,12 @@ def create_friendwork_router(
         if allowed_recruiters and recruiter_name:
             if _normalize_name(recruiter_name) not in allowed_recruiters:
                 return {"status": "skipped_not_allowed"}
+
+        if not job_url:
+            job_url = build_friendwork_job_url(str(vacancy_id))
+        if not closed_date:
+            tz = ZoneInfo("Europe/Moscow")
+            closed_date = datetime.now(tz).strftime("%d.%m.%y")
 
         vacancy = VacancyAssignment(
             vacancy_id=str(vacancy_id),

@@ -101,6 +101,26 @@ def next_daily_moscow(hour: int = 10) -> datetime:
     return target
 
 
+def build_friendwork_job_url(vacancy_id: str | None) -> str | None:
+    if not vacancy_id:
+        return None
+    return f"https://app.friend.work/Job/Edit/{vacancy_id}"
+
+
+def ensure_vacancy_feedback_metadata(
+    vacancy: VacancyAssignment | None, fallback_vacancy_id: str | None = None
+) -> VacancyAssignment | None:
+    if vacancy is None:
+        return None
+    vacancy_id = vacancy.vacancy_id or fallback_vacancy_id or ""
+    if vacancy_id and vacancy_id != "manual":
+        if not vacancy.job_url:
+            vacancy.job_url = build_friendwork_job_url(vacancy_id)
+        if not vacancy.closed_date:
+            vacancy.closed_date = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%y")
+    return vacancy
+
+
 async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssignment) -> None:
     for manager_id in vacancy.hiring_manager_ids:
         user = await ctx.user_store.get(manager_id)
@@ -256,10 +276,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         if not vacancy:
             await callback.message.answer("Не могу найти вакансию. Напишите администратору.")
             return
-        if not vacancy.job_url and vacancy_id and vacancy_id != "manual":
-            vacancy.job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
-        if not vacancy.closed_date and vacancy_id and vacancy_id != "manual":
-            vacancy.closed_date = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%y")
+        vacancy = ensure_vacancy_feedback_metadata(vacancy, vacancy_id)
+        await ctx.vacancy_store.upsert(vacancy)
         user = await get_registered_user(callback.from_user.id, callback.from_user.username)
         if not user:
             await callback.message.answer(
@@ -489,7 +507,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             if not closed_date:
                 closed_date = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%y")
             if not job_url:
-                job_url = f"https://app.friend.work/Job/Edit/{vacancy_id}"
+                job_url = build_friendwork_job_url(vacancy_id) or ""
         await ctx.reminders.remove(message.from_user.id, vacancy_id)
         record = FeedbackRecord(
             vacancy_id=data.get("vacancy_id", ""),

@@ -27,6 +27,19 @@ class SheetWebhookClient:
 
     @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
     def append_feedback(self, record: FeedbackRecord) -> None:
+        feedback_row = [
+            record.vacancy_title or record.vacancy_id,
+            record.hiring_manager_full_name,
+            record.recommendations or record.feedback_comment,
+            record.recruiter_name,
+            record.overall_rating,
+            record.comms_rating,
+            record.timeliness_rating,
+            record.relevance_rating,
+            record.process_quality_rating,
+            record.closed_date,
+            record.job_url,
+        ]
         payload = {
             "type": "feedback",
             "vacancy": record.vacancy_title or record.vacancy_id,
@@ -44,23 +57,7 @@ class SheetWebhookClient:
             "submitted_at": record.submitted_at.isoformat(),
             "telegram_user_id": record.telegram_user_id,
             "source": "telegram-bot",
-            # Row mapped to the sheet headers (A-I).
-            "row": [
-                record.vacancy_title or record.vacancy_id,
-                record.hiring_manager_full_name,
-                record.recommendations or record.feedback_comment,
-                record.recruiter_name,
-                record.overall_rating,
-                record.comms_rating,
-                record.timeliness_rating,
-                record.relevance_rating,
-                record.process_quality_rating,
-                record.closed_date,
-                record.job_url,
-                record.candidate_count,
-                record.tech_interview_count,
-            ],
-            # Explicit column names to help Apps Script map the row.
+            "row": feedback_row,
             "columns": [
                 "Вакансия",
                 "Нанимающий менеджер",
@@ -71,27 +68,10 @@ class SheetWebhookClient:
                 "Вакансия закрыта в комфортные сроки? Да/Нет",
                 "Насколько релевантны кандидаты? (1-5)",
                 "Как оцениваете качество процесса? (1-5)",
-                "Дата и время закрытия вакансии",
+                "Дата закрытия вакансии",
                 "Ссылка на вакансию",
-                "Кол-во кандидатов на вакансии",
-                "Кол-во тех. интервью",
             ],
-            # Duplicate row under a generic key in case the script expects it.
-            "values": [
-                record.vacancy_title or record.vacancy_id,
-                record.hiring_manager_full_name,
-                record.recommendations or record.feedback_comment,
-                record.recruiter_name,
-                record.overall_rating,
-                record.comms_rating,
-                record.timeliness_rating,
-                record.relevance_rating,
-                record.process_quality_rating,
-                record.closed_date,
-                record.job_url,
-                record.candidate_count,
-                record.tech_interview_count,
-            ],
+            "values": feedback_row,
         }
 
         resp = self._post(payload)
