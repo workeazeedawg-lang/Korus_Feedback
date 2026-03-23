@@ -134,6 +134,14 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
         user = await ctx.user_store.get(manager_id)
         if user and user.status != "active":
             continue
+        existing = await ctx.reminders.get(manager_id, vacancy.vacancy_id)
+        if existing:
+            logger.info(
+                "Skipping duplicate feedback request for vacancy %s and manager %s; reminder already exists.",
+                vacancy.vacancy_id,
+                manager_id,
+            )
+            continue
         text = (
             f"Вакансия закрыта: {vacancy.vacancy_title}\n"
             f"Рекрутер: {vacancy.recruiter_name}\n"
@@ -159,21 +167,18 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
         if not sent:
             logger.warning("Giving up sending feedback request to %s after 3 attempts: %s", manager_id, last_exc)
             continue
-        # Track initial request to notify admin if no action in 5 days.
-        existing = await ctx.reminders.get(manager_id, vacancy.vacancy_id)
-        if not existing:
-            now = datetime.now(ZoneInfo("Europe/Moscow"))
-            next_at = next_daily_moscow()
-            await ctx.reminders.upsert(
-                Reminder(
-                    manager_id,
-                    vacancy.vacancy_id,
-                    next_at,
-                    first_at=now,
-                    remind_count=0,
-                    notified_admin=False,
-                )
+        now = datetime.now(ZoneInfo("Europe/Moscow"))
+        next_at = next_daily_moscow()
+        await ctx.reminders.upsert(
+            Reminder(
+                manager_id,
+                vacancy.vacancy_id,
+                next_at,
+                first_at=now,
+                remind_count=0,
+                notified_admin=False,
             )
+        )
 
 
 async def send_feedback_request_to_user(
