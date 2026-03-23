@@ -53,6 +53,8 @@ class SheetWebhookClient:
             "timeliness_rating": record.timeliness_rating,
             "relevance_rating": record.relevance_rating,
             "process_quality_rating": record.process_quality_rating,
+            "closed_date": record.closed_date,
+            "job_url": record.job_url,
             "recommendations": record.recommendations,
             "submitted_at": record.submitted_at.isoformat(),
             "telegram_user_id": record.telegram_user_id,
