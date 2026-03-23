@@ -92,6 +92,14 @@ def timeliness_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def rating_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=str(value), callback_data=f"rating:{value}") for value in range(1, 6)]
+        ]
+    )
+
+
 def next_daily_moscow(hour: int = 10) -> datetime:
     tz = ZoneInfo("Europe/Moscow")
     now = datetime.now(tz)
@@ -295,7 +303,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
-        await callback.message.answer("Общая оценка работы рекрутера (1-5)?")
+        await callback.message.answer("Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
 
     @router.callback_query(lambda c: c.data and c.data.startswith("remind_feedback:"))
     async def handle_remind_feedback(callback: CallbackQuery) -> None:
@@ -367,7 +375,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
         await state.set_state(FeedbackStates.overall_rating)
-        await message.answer("Запускаю ручной опрос. Общая оценка работы рекрутера (1-5)?")
+        await message.answer("Запускаю ручной опрос. Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
 
     async def _validate_rating(message: Message, min_value: int = 1, max_value: int = 5) -> int | None:
         try:
@@ -392,6 +400,62 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
         )
 
+    @router.callback_query(lambda c: c.data and c.data.startswith("rating:"))
+    async def receive_rating_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        current_state = await state.get_state()
+        if current_state not in {
+            FeedbackStates.overall_rating.state,
+            FeedbackStates.comms_rating.state,
+            FeedbackStates.relevance_rating.state,
+            FeedbackStates.process_quality_rating.state,
+        }:
+            await callback.answer()
+            return
+
+        try:
+            rating = int(callback.data.split(":", maxsplit=1)[1])
+        except (TypeError, ValueError):
+            await callback.answer("Некорректная оценка", show_alert=True)
+            return
+
+        if rating < 1 or rating > 5:
+            await callback.answer("Оценка должна быть от 1 до 5", show_alert=True)
+            return
+
+        await callback.answer()
+
+        if current_state == FeedbackStates.overall_rating.state:
+            await state.update_data(overall_rating=rating)
+            data = await state.get_data()
+            await state.set_state(FeedbackStates.recruiter)
+            await callback.message.answer(
+                "С каким рекрутером вы работали?",
+                reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
+            )
+            return
+
+        if current_state == FeedbackStates.comms_rating.state:
+            await state.update_data(comms_rating=rating)
+            await state.set_state(FeedbackStates.timeliness_rating)
+            await callback.message.answer(
+                "Вакансия закрыта в комфортные сроки? Да/Нет",
+                reply_markup=timeliness_keyboard(),
+            )
+            return
+
+        if current_state == FeedbackStates.relevance_rating.state:
+            await state.update_data(relevance_rating=rating)
+            await state.set_state(FeedbackStates.process_quality_rating)
+            await callback.message.answer(
+                "Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)",
+                reply_markup=rating_keyboard(),
+            )
+            return
+
+        await state.update_data(process_quality_rating=rating)
+        await state.set_state(FeedbackStates.recommendations)
+        await callback.message.answer("Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
+
     @router.callback_query(lambda c: c.data == "recruiter_use_default")
     async def recruiter_use_default(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
@@ -399,7 +463,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         recruiter_name = data.get("recruiter_name", "Неизвестен")
         await state.update_data(recruiter_name=recruiter_name)
         await state.set_state(FeedbackStates.comms_rating)
-        await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
+        await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
 
     @router.callback_query(lambda c: c.data == "recruiter_other")
     async def recruiter_other(callback: CallbackQuery, state: FSMContext) -> None:
@@ -412,7 +476,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         recruiter_name = message.text.strip()
         await state.update_data(recruiter_name=recruiter_name)
         await state.set_state(FeedbackStates.comms_rating)
-        await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)")
+        await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
 
     @router.message(FeedbackStates.comms_rating)
     async def receive_comms(message: Message, state: FSMContext) -> None:
@@ -429,7 +493,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         value = "да" if callback.data == "timeliness_yes" else "нет"
         await state.update_data(timeliness_rating=value)
         await state.set_state(FeedbackStates.relevance_rating)
-        await callback.message.answer("Насколько релевантны кандидаты? (1-5)")
+        await callback.message.answer("Насколько релевантны кандидаты? (1-5)", reply_markup=rating_keyboard())
 
     @router.message(FeedbackStates.timeliness_rating)
     async def receive_time_text(message: Message, state: FSMContext) -> None:
@@ -440,7 +504,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         normalized = "да" if value in {"да", "yes"} else "нет"
         await state.update_data(timeliness_rating=normalized)
         await state.set_state(FeedbackStates.relevance_rating)
-        await message.answer("Насколько релевантны кандидаты? (1-5)")
+        await message.answer("Насколько релевантны кандидаты? (1-5)", reply_markup=rating_keyboard())
     @router.message(FeedbackStates.relevance_rating)
     async def receive_relevance(message: Message, state: FSMContext) -> None:
         rating = await _validate_rating(message)
@@ -448,7 +512,10 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             return
         await state.update_data(relevance_rating=rating)
         await state.set_state(FeedbackStates.process_quality_rating)
-        await message.answer("Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)")
+        await message.answer(
+            "Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)",
+            reply_markup=rating_keyboard(),
+        )
 
     @router.message(FeedbackStates.process_quality_rating)
     async def receive_process_quality(message: Message, state: FSMContext) -> None:
