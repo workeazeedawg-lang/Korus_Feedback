@@ -163,7 +163,7 @@ async def send_feedback_request(bot: Bot, ctx: AppContext, vacancy: VacancyAssig
         existing = await ctx.reminders.get(manager_id, vacancy.vacancy_id)
         if not existing:
             now = datetime.now(ZoneInfo("Europe/Moscow"))
-            next_at = now + timedelta(days=5)
+            next_at = next_daily_moscow()
             await ctx.reminders.upsert(
                 Reminder(
                     manager_id,

@@ -115,35 +115,18 @@ async def reminder_loop() -> None:
                         remind_count=reminder.remind_count,
                         notified_admin=True,
                     )
-                if reminder.remind_count > 0:
-                    await send_feedback_request_to_user(bot, ctx, vacancy, reminder.telegram_id)
-                    next_at = next_daily_moscow()
-                    await ctx.reminders.upsert(
-                        Reminder(
-                            reminder.telegram_id,
-                            reminder.vacancy_id,
-                            next_at,
-                            first_at=reminder.first_at,
-                            remind_count=reminder.remind_count,
-                            notified_admin=reminder.notified_admin,
-                        )
+                await send_feedback_request_to_user(bot, ctx, vacancy, reminder.telegram_id)
+                next_at = next_daily_moscow()
+                await ctx.reminders.upsert(
+                    Reminder(
+                        reminder.telegram_id,
+                        reminder.vacancy_id,
+                        next_at,
+                        first_at=reminder.first_at,
+                        remind_count=reminder.remind_count + 1,
+                        notified_admin=reminder.notified_admin,
                     )
-                else:
-                    # No reminder requested; stop tracking after admin alert.
-                    if reminder.notified_admin:
-                        await ctx.reminders.remove(reminder.telegram_id, reminder.vacancy_id)
-                    else:
-                        next_at = reminder.first_at + timedelta(days=5)
-                        await ctx.reminders.upsert(
-                            Reminder(
-                                reminder.telegram_id,
-                                reminder.vacancy_id,
-                                next_at,
-                                first_at=reminder.first_at,
-                                remind_count=reminder.remind_count,
-                                notified_admin=reminder.notified_admin,
-                            )
-                        )
+                )
 
 
 @app.on_event("startup")
