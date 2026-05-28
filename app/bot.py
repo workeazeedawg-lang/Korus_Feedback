@@ -44,13 +44,17 @@ class RegistrationStates(StatesGroup):
 
 
 class FeedbackStates(StatesGroup):
+    recommendations = State()
     overall_rating = State()
     recruiter = State()
     comms_rating = State()
+    requirement_understanding = State()
+    first_candidate_relevant = State()
     timeliness_rating = State()
     relevance_rating = State()
-    process_quality_rating = State()
-    recommendations = State()
+    process_clarity_rating = State()
+    improvement_priority = State()
+    recommend_recruiter = State()
     confirm = State()
 
 
@@ -83,11 +87,21 @@ def confirm_feedback_keyboard() -> InlineKeyboardMarkup:
 
 
 
-def timeliness_keyboard() -> InlineKeyboardMarkup:
+def yes_no_keyboard(prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Да", callback_data="timeliness_yes")],
-            [InlineKeyboardButton(text="Нет", callback_data="timeliness_no")],
+            [InlineKeyboardButton(text="Да", callback_data=f"{prefix}:yes")],
+            [InlineKeyboardButton(text="Нет", callback_data=f"{prefix}:no")],
+        ]
+    )
+
+
+def requirement_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Да", callback_data="requirement:yes")],
+            [InlineKeyboardButton(text="Частично", callback_data="requirement:partly")],
+            [InlineKeyboardButton(text="Нет", callback_data="requirement:no")],
         ]
     )
 
@@ -307,8 +321,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             candidate_count=vacancy.candidate_count or 0,
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
-        await state.set_state(FeedbackStates.overall_rating)
-        await callback.message.answer("Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
+        await state.set_state(FeedbackStates.recommendations)
+        await callback.message.answer("Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
 
     @router.callback_query(lambda c: c.data and c.data.startswith("remind_feedback:"))
     async def handle_remind_feedback(callback: CallbackQuery) -> None:
@@ -379,8 +393,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             candidate_count=vacancy.candidate_count or 0,
             tech_interview_count=vacancy.tech_interview_count or 0,
         )
-        await state.set_state(FeedbackStates.overall_rating)
-        await message.answer("Запускаю ручной опрос. Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
+        await state.set_state(FeedbackStates.recommendations)
+        await message.answer("Запускаю ручной опрос. Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
 
     async def _validate_rating(message: Message, min_value: int = 1, max_value: int = 5) -> int | None:
         try:
@@ -392,18 +406,33 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         await message.answer(f"Введите число от {min_value} до {max_value}.")
         return None
 
+    async def _read_text_or_voice(message: Message, bot: Bot, empty_prompt: str) -> str | None:
+        if message.voice:
+            if ctx.speech is None:
+                await message.answer("Распознавание речи не настроено. Отправьте текстом, пожалуйста.")
+                return None
+            await message.answer("Преобразуем голосовое в текст...")
+            file = await bot.get_file(message.voice.file_id)
+            buffer = await bot.download_file(file.file_path)
+            transcription = await ctx.speech.transcribe_bytes(buffer.read())
+            if not transcription:
+                await message.answer("Не удалось распознать голос. Отправьте текстом, пожалуйста.")
+                return None
+            await message.answer(f"Транскрипция:\n{transcription}")
+            return transcription
+        if message.text:
+            return message.text.strip()
+        await message.answer(empty_prompt)
+        return None
+
     @router.message(FeedbackStates.overall_rating)
     async def receive_overall(message: Message, state: FSMContext) -> None:
         rating = await _validate_rating(message)
         if rating is None:
             return
         await state.update_data(overall_rating=rating)
-        data = await state.get_data()
-        await state.set_state(FeedbackStates.recruiter)
-        await message.answer(
-            "С каким рекрутером вы работали?",
-            reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
-        )
+        await state.set_state(FeedbackStates.comms_rating)
+        await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
 
     @router.callback_query(lambda c: c.data and c.data.startswith("rating:"))
     async def receive_rating_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -412,7 +441,7 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             FeedbackStates.overall_rating.state,
             FeedbackStates.comms_rating.state,
             FeedbackStates.relevance_rating.state,
-            FeedbackStates.process_quality_rating.state,
+            FeedbackStates.process_clarity_rating.state,
         }:
             await callback.answer()
             return
@@ -431,35 +460,34 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
 
         if current_state == FeedbackStates.overall_rating.state:
             await state.update_data(overall_rating=rating)
-            data = await state.get_data()
-            await state.set_state(FeedbackStates.recruiter)
-            await callback.message.answer(
-                "С каким рекрутером вы работали?",
-                reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
-            )
+            await state.set_state(FeedbackStates.comms_rating)
+            await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
             return
 
         if current_state == FeedbackStates.comms_rating.state:
             await state.update_data(comms_rating=rating)
-            await state.set_state(FeedbackStates.timeliness_rating)
+            await state.set_state(FeedbackStates.requirement_understanding)
             await callback.message.answer(
-                "Вакансия закрыта в комфортные сроки? Да/Нет",
-                reply_markup=timeliness_keyboard(),
+                "Понял ли рекрутер требования? Да/Частично/Нет",
+                reply_markup=requirement_keyboard(),
             )
             return
 
         if current_state == FeedbackStates.relevance_rating.state:
             await state.update_data(relevance_rating=rating)
-            await state.set_state(FeedbackStates.process_quality_rating)
+            await state.set_state(FeedbackStates.process_clarity_rating)
             await callback.message.answer(
-                "Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)",
+                "Насколько понятен был процесс? (1-5)",
                 reply_markup=rating_keyboard(),
             )
             return
 
-        await state.update_data(process_quality_rating=rating)
-        await state.set_state(FeedbackStates.recommendations)
-        await callback.message.answer("Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
+        await state.update_data(process_clarity_rating=rating)
+        await state.set_state(FeedbackStates.timeliness_rating)
+        await callback.message.answer(
+            "Вакансия закрыта в комфортные сроки? Да/Нет",
+            reply_markup=yes_no_keyboard("timeliness"),
+        )
 
     @router.callback_query(lambda c: c.data == "recruiter_use_default")
     async def recruiter_use_default(callback: CallbackQuery, state: FSMContext) -> None:
@@ -467,8 +495,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         data = await state.get_data()
         recruiter_name = data.get("recruiter_name", "Неизвестен")
         await state.update_data(recruiter_name=recruiter_name)
-        await state.set_state(FeedbackStates.comms_rating)
-        await callback.message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
+        await state.set_state(FeedbackStates.overall_rating)
+        await callback.message.answer("Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
 
     @router.callback_query(lambda c: c.data == "recruiter_other")
     async def recruiter_other(callback: CallbackQuery, state: FSMContext) -> None:
@@ -480,8 +508,8 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
     async def receive_recruiter(message: Message, state: FSMContext) -> None:
         recruiter_name = message.text.strip()
         await state.update_data(recruiter_name=recruiter_name)
-        await state.set_state(FeedbackStates.comms_rating)
-        await message.answer("Как оцениваете коммуникацию с рекрутером? (1-5)", reply_markup=rating_keyboard())
+        await state.set_state(FeedbackStates.overall_rating)
+        await message.answer("Общая оценка работы рекрутера (1-5)?", reply_markup=rating_keyboard())
 
     @router.message(FeedbackStates.comms_rating)
     async def receive_comms(message: Message, state: FSMContext) -> None:
@@ -489,16 +517,67 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
         if rating is None:
             return
         await state.update_data(comms_rating=rating)
-        await state.set_state(FeedbackStates.timeliness_rating)
-        await message.answer("Вакансия закрыта в комфортные сроки? Да/Нет", reply_markup=timeliness_keyboard())
+        await state.set_state(FeedbackStates.requirement_understanding)
+        await message.answer("Понял ли рекрутер требования? Да/Частично/Нет", reply_markup=requirement_keyboard())
 
-    @router.callback_query(lambda c: c.data in {"timeliness_yes", "timeliness_no"})
-    async def receive_time_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    @router.callback_query(lambda c: c.data and c.data.startswith("requirement:"))
+    async def receive_requirement_callback(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
-        value = "да" if callback.data == "timeliness_yes" else "нет"
-        await state.update_data(timeliness_rating=value)
+        value = callback.data.split(":", maxsplit=1)[1]
+        labels = {"yes": "да", "partly": "частично", "no": "нет"}
+        if value not in labels:
+            await callback.answer("Некорректный ответ", show_alert=True)
+            return
+        await state.update_data(requirement_understanding=labels[value])
+        await state.set_state(FeedbackStates.first_candidate_relevant)
+        await callback.message.answer(
+            "Первый кандидат был релевантен? Да/Нет",
+            reply_markup=yes_no_keyboard("first_candidate"),
+        )
+
+    @router.message(FeedbackStates.requirement_understanding)
+    async def receive_requirement_text(message: Message, state: FSMContext) -> None:
+        value = (message.text or "").strip().lower()
+        labels = {"да": "да", "yes": "да", "частично": "частично", "нет": "нет", "no": "нет"}
+        if value not in labels:
+            await message.answer("Ответьте 'Да', 'Частично' или 'Нет'.")
+            return
+        await state.update_data(requirement_understanding=labels[value])
+        await state.set_state(FeedbackStates.first_candidate_relevant)
+        await message.answer("Первый кандидат был релевантен? Да/Нет", reply_markup=yes_no_keyboard("first_candidate"))
+
+    @router.callback_query(lambda c: c.data and c.data.startswith("first_candidate:"))
+    async def receive_first_candidate_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        value = callback.data.split(":", maxsplit=1)[1]
+        if value not in {"yes", "no"}:
+            await callback.answer("Некорректный ответ", show_alert=True)
+            return
+        await state.update_data(first_candidate_relevant="да" if value == "yes" else "нет")
         await state.set_state(FeedbackStates.relevance_rating)
         await callback.message.answer("Насколько релевантны кандидаты? (1-5)", reply_markup=rating_keyboard())
+
+    @router.message(FeedbackStates.first_candidate_relevant)
+    async def receive_first_candidate_text(message: Message, state: FSMContext) -> None:
+        value = (message.text or "").strip().lower()
+        if value not in {"да", "нет", "yes", "no"}:
+            await message.answer("Ответьте 'Да' или 'Нет'.")
+            return
+        await state.update_data(first_candidate_relevant="да" if value in {"да", "yes"} else "нет")
+        await state.set_state(FeedbackStates.relevance_rating)
+        await message.answer("Насколько релевантны кандидаты? (1-5)", reply_markup=rating_keyboard())
+
+    @router.callback_query(lambda c: c.data and c.data.startswith("timeliness:"))
+    async def receive_time_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        value = callback.data.split(":", maxsplit=1)[1]
+        if value not in {"yes", "no"}:
+            await callback.answer("Некорректный ответ", show_alert=True)
+            return
+        value = "да" if value == "yes" else "нет"
+        await state.update_data(timeliness_rating=value)
+        await state.set_state(FeedbackStates.improvement_priority)
+        await callback.message.answer("Что улучшить в первую очередь? Отправьте текст или голос.")
 
     @router.message(FeedbackStates.timeliness_rating)
     async def receive_time_text(message: Message, state: FSMContext) -> None:
@@ -508,64 +587,87 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             return
         normalized = "да" if value in {"да", "yes"} else "нет"
         await state.update_data(timeliness_rating=normalized)
-        await state.set_state(FeedbackStates.relevance_rating)
-        await message.answer("Насколько релевантны кандидаты? (1-5)", reply_markup=rating_keyboard())
+        await state.set_state(FeedbackStates.improvement_priority)
+        await message.answer("Что улучшить в первую очередь? Отправьте текст или голос.")
     @router.message(FeedbackStates.relevance_rating)
     async def receive_relevance(message: Message, state: FSMContext) -> None:
         rating = await _validate_rating(message)
         if rating is None:
             return
         await state.update_data(relevance_rating=rating)
-        await state.set_state(FeedbackStates.process_quality_rating)
+        await state.set_state(FeedbackStates.process_clarity_rating)
         await message.answer(
-            "Как оцениваете качество процесса (ошибки, фидбек, поддержка, HR-интервью)? (1-5)",
+            "Насколько понятен был процесс? (1-5)",
             reply_markup=rating_keyboard(),
         )
 
-    @router.message(FeedbackStates.process_quality_rating)
-    async def receive_process_quality(message: Message, state: FSMContext) -> None:
+    @router.message(FeedbackStates.process_clarity_rating)
+    async def receive_process_clarity(message: Message, state: FSMContext) -> None:
         rating = await _validate_rating(message)
         if rating is None:
             return
-        await state.update_data(process_quality_rating=rating)
-        await state.set_state(FeedbackStates.recommendations)
-        await message.answer("Какие рекомендации по улучшению работы рекрутера? Отправьте текст или голос.")
+        await state.update_data(process_clarity_rating=rating)
+        await state.set_state(FeedbackStates.timeliness_rating)
+        await message.answer("Вакансия закрыта в комфортные сроки? Да/Нет", reply_markup=yes_no_keyboard("timeliness"))
 
     @router.message(FeedbackStates.recommendations)
     async def receive_recommendations(message: Message, state: FSMContext, bot: Bot) -> None:
-        text: str | None = None
-        if message.voice:
-            if ctx.speech is None:
-                await message.answer("Распознавание речи не настроено. Отправьте текстом, пожалуйста.")
-                return
-            await message.answer("Преобразуем голосовое в текст...")
-            file = await bot.get_file(message.voice.file_id)
-            buffer = await bot.download_file(file.file_path)
-            transcription = await ctx.speech.transcribe_bytes(buffer.read())
-            if not transcription:
-                await message.answer("Не удалось распознать голос. Отправьте текстом, пожалуйста.")
-                return
-            text = transcription
-            await message.answer(f"Транскрипция:\n{text}")
-        elif message.text:
-            text = message.text.strip()
-
+        text = await _read_text_or_voice(message, bot, "Отправьте текст или голосовое с рекомендациями.")
         if not text:
-            await message.answer("Отправьте текст или голосовое с рекомендациями.")
             return
 
         await state.update_data(recommendations=text, feedback_comment=text)
+        data = await state.get_data()
+        await state.set_state(FeedbackStates.recruiter)
+        await message.answer(
+            "С каким рекрутером вы работали?",
+            reply_markup=recruiter_choice_keyboard(data.get("recruiter_name", "")),
+        )
+
+    @router.message(FeedbackStates.improvement_priority)
+    async def receive_improvement_priority(message: Message, state: FSMContext, bot: Bot) -> None:
+        text = await _read_text_or_voice(message, bot, "Отправьте текст или голосовое с тем, что нужно улучшить.")
+        if not text:
+            return
+        await state.update_data(improvement_priority=text)
+        await state.set_state(FeedbackStates.recommend_recruiter)
+        await message.answer("Рекомендовали бы рекрутера? Да/Нет", reply_markup=yes_no_keyboard("recommend_recruiter"))
+
+    @router.callback_query(lambda c: c.data and c.data.startswith("recommend_recruiter:"))
+    async def receive_recommend_recruiter_callback(callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        value = callback.data.split(":", maxsplit=1)[1]
+        if value not in {"yes", "no"}:
+            await callback.answer("Некорректный ответ", show_alert=True)
+            return
+        await state.update_data(recommend_recruiter="да" if value == "yes" else "нет")
+        await _show_feedback_summary(callback.message, state)
+
+    @router.message(FeedbackStates.recommend_recruiter)
+    async def receive_recommend_recruiter_text(message: Message, state: FSMContext) -> None:
+        value = (message.text or "").strip().lower()
+        if value not in {"да", "нет", "yes", "no"}:
+            await message.answer("Ответьте 'Да' или 'Нет'.")
+            return
+        await state.update_data(recommend_recruiter="да" if value in {"да", "yes"} else "нет")
+        await _show_feedback_summary(message, state)
+
+    async def _show_feedback_summary(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         await state.set_state(FeedbackStates.confirm)
         summary = (
             f"Вакансия: {data.get('vacancy_title')}\n"
             f"Рекрутер: {data.get('recruiter_name')}\n"
+            f"Рекомендации: {data.get('recommendations')}\n"
             f"Общая оценка: {data.get('overall_rating')}\n"
             f"Коммуникация: {data.get('comms_rating')}\n"
-            f"Сроки закрытия: {data.get('timeliness_rating')}\n"
+            f"Понял требования: {data.get('requirement_understanding')}\n"
+            f"Первый кандидат релевантен: {data.get('first_candidate_relevant')}\n"
             f"Релевантность кандидатов: {data.get('relevance_rating')}\n"
-            f"Качество процесса: {data.get('process_quality_rating')}\n"
-            f"Рекомендации: {text}\n\n"
+            f"Понятность процесса: {data.get('process_clarity_rating')}\n"
+            f"Сроки закрытия: {data.get('timeliness_rating')}\n"
+            f"Что улучшить: {data.get('improvement_priority')}\n"
+            f"Рекомендовали бы рекрутера: {data.get('recommend_recruiter')}\n\n"
             "Сохранить отзыв? Ответьте 'да' для сохранения или 'нет' для отмены."
         )
         await message.answer(summary, reply_markup=confirm_feedback_keyboard())
@@ -594,10 +696,15 @@ def register_handlers(router: Router, ctx: AppContext) -> None:
             feedback_comment=data.get("feedback_comment", ""),
             overall_rating=data.get("overall_rating", 0),
             comms_rating=data.get("comms_rating", 0),
+            requirement_understanding=str(data.get("requirement_understanding") or ""),
+            first_candidate_relevant=str(data.get("first_candidate_relevant") or ""),
             timeliness_rating=str(data.get("timeliness_rating") or ""),
             relevance_rating=data.get("relevance_rating", 0),
             process_quality_rating=data.get("process_quality_rating", 0),
+            process_clarity_rating=data.get("process_clarity_rating", 0),
             recommendations=data.get("recommendations", ""),
+            improvement_priority=data.get("improvement_priority", ""),
+            recommend_recruiter=str(data.get("recommend_recruiter") or ""),
             submitted_at=datetime.utcnow(),
         )
         if ctx.sheets:

@@ -45,3 +45,8 @@ class FeedbackRecord:
     process_quality_rating: int
     recommendations: str
     submitted_at: datetime
+    requirement_understanding: str = ""
+    first_candidate_relevant: str = ""
+    process_clarity_rating: int = 0
+    improvement_priority: str = ""
+    recommend_recruiter: str = ""
